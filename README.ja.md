@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/kikori-logo-dark.svg">
+    <img src="assets/kikori-logo-light.svg" alt="" width="320">
+  </picture>
+</p>
+
 # kikori
 
 [English](README.md) | 日本語
