@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { after, before, test } from "node:test";
+import { checkAxe } from "../src/checks/axe.js";
 import { checkKeyboardFocus } from "../src/checks/focus.js";
 import { checkPresentation } from "../src/checks/presentation.js";
 import { checkReflow } from "../src/checks/reflow.js";
+import { checkTextSpacing } from "../src/checks/textSpacing.js";
 import { configure, getSettings } from "../src/config.js";
 import type { CheckResult, Severity } from "../src/types.js";
 
@@ -19,6 +21,18 @@ let port: number;
 before(async () => {
   const html = (body: string, head = ""): string => `<!doctype html><html lang="ja"><head><title>ページ</title>${head}</head><body>${body}</body></html>`;
   server = createServer((req, res) => {
+    if (req.url === "/strict") {
+      // インラインのスクリプトとスタイルを禁じる、厳しい Content Security Policy を付けたページ。
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-security-policy": "default-src 'self'; script-src 'self'; style-src 'self'" });
+      // インラインのスタイルはこのポリシーに止められるので、ページ自身のスタイルは外部ファイルに置く。
+      res.end(html(`<h1>厳しい設定のページ</h1><p><img id="no-alt" src="/pixel.gif" width="20" height="20"></p><div id="clip">高さを固定した箱です。</div>`, `<link rel="stylesheet" href="/strict.css">`));
+      return;
+    }
+    if (req.url === "/strict.css") {
+      res.writeHead(200, { "content-type": "text/css" });
+      res.end("#clip { width: 190px; height: 22px; overflow: hidden; font-size: 16px; line-height: 1.2; }");
+      return;
+    }
     res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
     if (req.url === "/instant") res.end(html("<h1>移動する前のページ</h1>", `<meta http-equiv="refresh" content="0; URL='/landing'">`));
     else if (req.url === "/instant-away") res.end(html("<h1>外へ移動するページ</h1>", `<meta http-equiv="refresh" content="0; URL='http://localhost:${port}/landing'">`));
@@ -38,6 +52,15 @@ after(() => {
 test("すぐに別のページへ移るページでは、移った先を検査する", async () => {
   const result = await checkReflow({ url: `http://127.0.0.1:${port}/instant` });
   assert.ok(has(result, "1.4.10", "fail", "#wide"));
+});
+
+test("厳しい Content Security Policy のページでも、スクリプトやスタイルを差し込む検査が働く", async () => {
+  const url = `http://127.0.0.1:${port}/strict`;
+  const axe = await checkAxe({ url });
+  assert.ok(has(axe, "1.1.1", "fail", "#no-alt"));
+  // テキスト間隔の検査は、スタイルを上書きしてから測る。上書きが効かなければ、何も見つからない。
+  const spacing = await checkTextSpacing({ url });
+  assert.ok(has(spacing, "1.4.12", "fail", "#clip"));
 });
 
 test("すぐに許可していないホストへ移るページは、理由を添えて断る", async () => {
