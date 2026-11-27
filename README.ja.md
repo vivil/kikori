@@ -116,17 +116,29 @@ Claude Code などのエージェントから呼び出すと、指摘が達成�
 
 Node.js 26 以上が必要です。
 
-```sh
-npm install
-npx playwright install chromium
-npm run build
-```
-
-Claude Code に登録する例です。パスは、このリポジトリを置いた場所に読み替えてください。
+最初に、検査に使うブラウザを入れます。1 回だけ実行すれば足ります。
 
 ```sh
-claude mcp add kikori -- node /path/to/kikori/dist/src/index.js
+npx kikori install
 ```
+
+Linux では、`--with-deps` を付けると、ブラウザに必要なライブラリもあわせて入ります。このコマンドは、kikori が依存している Playwright にブラウザを入れさせるので、版が食い違いません。`npx playwright install` を直接実行すると、別の版の Playwright 向けのブラウザが入ることがあります。
+
+次に、Claude Code に登録します。
+
+```sh
+claude mcp add kikori -- npx -y kikori
+```
+
+### エージェント用のスキル (任意)
+
+このリポジトリには、kikori での監査の進め方をエージェントに教えるスキルも入っています。最初に呼ぶツール、状態の読み方、判断材料の集め方と判断の渡し方、言ってはいけないことを説明します。[skills CLI](https://github.com/vercel-labs/skills) で入れられます。
+
+```sh
+npx skills add vivil/kikori
+```
+
+スキルが追加するのは手引きだけです。MCP サーバーは、上の手順で別に登録します。
 
 登録後は、次のように頼めます。
 
@@ -153,7 +165,7 @@ http://localhost:3000/ を audit_page でレベル AA まで検査して、fail 
 公開しているサイトを検査するときは、そのホストを指定します。`--allow-host` を指定すると既定の一覧は使われなくなるので、開発サーバーも検査するなら `localhost` を並べて書いてください。
 
 ```sh
-claude mcp add kikori -- node /path/to/kikori/dist/src/index.js --allow-host localhost --allow-host example.com
+claude mcp add kikori -- npx -y kikori --allow-host localhost --allow-host example.com
 ```
 
 ホストの書き方は 3 通りあります。
@@ -174,7 +186,7 @@ claude mcp add kikori -- node /path/to/kikori/dist/src/index.js --allow-host loc
 読み込みを止めたときは、結果の `notes` に宛先が入ります。フォントやスタイルを CDN から読み込むページでは、見た目が実際と違った状態で検査されます。`notes` に出たホストを `--allow-host` に足してください。
 
 ```sh
-claude mcp add kikori -- node /path/to/kikori/dist/src/index.js --allow-host localhost --allow-host fonts.googleapis.com --allow-host fonts.gstatic.com
+claude mcp add kikori -- npx -y kikori --allow-host localhost --allow-host fonts.googleapis.com --allow-host fonts.gstatic.com
 ```
 
 すべてのホストを開けるようにするには、`--allow-host '*'` を指定します。
@@ -192,7 +204,7 @@ iframe を読み込ませるには、`--allow-frame-host` で宛先を指定し�
 - `*`: すべての iframe を許可します。
 
 ```sh
-claude mcp add kikori -- node /path/to/kikori/dist/src/index.js --allow-host localhost:3000 --allow-frame-host self
+claude mcp add kikori -- npx -y kikori --allow-host localhost:3000 --allow-frame-host self
 ```
 
 `--allow-frame-host` は `--allow-host` とは別の一覧です。動画の埋め込み先を iframe として許可しても、そのホストを直接検査できるようにはなりません。
@@ -266,9 +278,16 @@ claude mcp add kikori -- node /path/to/kikori/dist/src/index.js --allow-host loc
 
 ## 開発
 
+kikori 自体を開発するときは、ソースからビルドします。
+
 ```sh
+npm install
+npm run build
+node dist/src/index.js install
 npm test
 ```
+
+手元のビルドを Claude Code から試すには、`claude mcp add kikori-dev -- node /path/to/kikori/dist/src/index.js` で登録します。
 
 `test/fixtures` に、問題のあるページと問題のないページを置いています。
 

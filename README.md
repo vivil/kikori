@@ -116,17 +116,29 @@ The browser is launched seven times per page, so each page takes around five sec
 
 Node.js 26 or later is required.
 
-```sh
-npm install
-npx playwright install chromium
-npm run build
-```
-
-To register it with Claude Code, replace the path with where you put this repository.
+First, install the browser that kikori uses for its checks. This is needed once.
 
 ```sh
-claude mcp add kikori -- node /path/to/kikori/dist/src/index.js
+npx kikori install
 ```
+
+On Linux, add `--with-deps` to install the system libraries the browser needs as well. The command asks the Playwright that kikori depends on to do the installation, so the browser always matches. Running `npx playwright install` yourself may fetch a browser for a different Playwright version.
+
+Then register kikori with Claude Code.
+
+```sh
+claude mcp add kikori -- npx -y kikori
+```
+
+### Agent skill (optional)
+
+The repository also ships an agent skill that teaches the agent how to run an audit with kikori: which tool to call first, how to read each status, how to gather evidence and pass judgments back, and what it must not claim. Install it with the [skills CLI](https://github.com/vercel-labs/skills).
+
+```sh
+npx skills add vivil/kikori
+```
+
+The skill only adds instructions. The MCP server still has to be registered as shown above.
 
 Then you can ask, for example:
 
@@ -153,7 +165,7 @@ With no options, only servers on your own machine (`localhost`, `*.localhost`, `
 To audit a public site, name its host. Giving `--allow-host` replaces the default list, so list `localhost` as well if you also audit a dev server.
 
 ```sh
-claude mcp add kikori -- node /path/to/kikori/dist/src/index.js --allow-host localhost --allow-host example.com
+claude mcp add kikori -- npx -y kikori --allow-host localhost --allow-host example.com
 ```
 
 Hosts can be written in three ways.
@@ -174,7 +186,7 @@ Images, scripts, styles and connections (fetch and WebSocket) follow the same li
 When loads are blocked, the `notes` of the result give the destinations. A page that takes fonts or styles from a CDN is then audited looking different from what users see. Add the hosts named in `notes` to `--allow-host`.
 
 ```sh
-claude mcp add kikori -- node /path/to/kikori/dist/src/index.js --allow-host localhost --allow-host fonts.googleapis.com --allow-host fonts.gstatic.com
+claude mcp add kikori -- npx -y kikori --allow-host localhost --allow-host fonts.googleapis.com --allow-host fonts.gstatic.com
 ```
 
 To allow every host, pass `--allow-host '*'`.
@@ -192,7 +204,7 @@ To let iframes load, name their destinations with `--allow-frame-host`.
 - `*` allows every iframe.
 
 ```sh
-claude mcp add kikori -- node /path/to/kikori/dist/src/index.js --allow-host localhost:3000 --allow-frame-host self
+claude mcp add kikori -- npx -y kikori --allow-host localhost:3000 --allow-frame-host self
 ```
 
 `--allow-frame-host` is a separate list from `--allow-host`. Allowing a video host as an iframe does not make that host auditable directly.
@@ -266,9 +278,16 @@ There are two severities.
 
 ## Development
 
+To work on kikori itself, build it from source.
+
 ```sh
+npm install
+npm run build
+node dist/src/index.js install
 npm test
 ```
+
+To try a local build from Claude Code, register it with `claude mcp add kikori-dev -- node /path/to/kikori/dist/src/index.js`.
 
 `test/fixtures` holds pages with and without problems.
 

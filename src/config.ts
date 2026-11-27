@@ -67,6 +67,8 @@ export function configure(settings: Settings): void {
 }
 
 const USAGE_JA = `使い方: kikori [オプション]
+        kikori install [--with-deps]   検査に使うブラウザを入れる。最初に 1 回だけ実行する。
+                                       --with-deps は、Linux で必要なライブラリも入れる。
 
   --lang <ja|en>          検査結果やエラーの文面に使う言語。
                           指定しないときは、環境の言語設定が日本語なら ja、それ以外は en。
@@ -87,6 +89,8 @@ const USAGE_JA = `使い方: kikori [オプション]
 KIKORI_NO_FILE=1 でも指定できる。オプションと環境変数の両方があるときは、オプションを使う。`;
 
 const USAGE_EN = `Usage: kikori [options]
+       kikori install [--with-deps]   Install the browser used for the checks. Run it once, first.
+                                      --with-deps also installs the libraries needed on Linux.
 
   --lang <ja|en>          Language for results and errors.
                           Defaults to ja when the system locale is Japanese, otherwise en.
