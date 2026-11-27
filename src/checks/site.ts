@@ -1,6 +1,7 @@
 import { tr } from "../i18n.js";
 import { auditPage, limitToLevel, summarizeCriteria, type CriterionRow, type CriterionStatus, type Judgment, type Verdict } from "./audit.js";
 import { assertAllowedUrl, withPage } from "../browser.js";
+import { getSettings } from "../config.js";
 import type { Level } from "../criteria.js";
 import { SC, summarize, type CheckResult, type Finding } from "../types.js";
 
@@ -71,6 +72,10 @@ export async function auditSite(options: SiteOptions): Promise<SiteResult> {
   let targets: string[];
   if (options.urls && options.urls.length > 0) {
     targets = unique(options.urls.map((u) => normalize(assertAllowedUrl(u).href))).filter((u) => u !== first.url);
+  } else if (getSettings().storageState) {
+    // ログイン状態のままリンクをたどると、ログアウトや削除のような操作のリンクを開きかねない。
+    targets = [];
+    notes.push(tr("ログイン状態を読み込んでいるため、リンクは自動ではたどっていません。検査するページを urls で指定してください。", "A login state is loaded, so links were not followed automatically. List the pages to audit in urls."));
   } else {
     targets = unique(first.internalLinks).filter((u) => u !== first.url);
   }
