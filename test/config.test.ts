@@ -34,7 +34,8 @@ before(async () => {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       res.end(`<!doctype html><html lang="ja"><title>設定</title><body><h1>設定</h1>
         <label><input id="notify" type="checkbox" onchange="fetch('/toggle')"> 通知を受け取る</label>
-        <label><input id="beacon" type="checkbox" onchange="new Image().src = '/toggle'; navigator.sendBeacon('/toggle')"> 画像と送信用の API で切り替える</label></body></html>`);
+        <label><input id="beacon" type="checkbox" onchange="new Image().src = '/toggle'; navigator.sendBeacon('/toggle')"> 画像と送信用の API で切り替える</label>
+        <label><input id="framed" type="checkbox" onchange="const f = document.createElement('iframe'); f.src = '/toggle'; document.body.append(f)"> iframe で切り替える</label></body></html>`);
       return;
     }
     if (req.url === "/members") {
@@ -331,12 +332,13 @@ test("ログイン済みの状態: 操作を試す間は、スクリプトから
   const url = `http://127.0.0.1:${port}/settings`;
 
   // 状態を読み込んでいなければ、チェックの切り替えで通信が届く。
-  configure(settings([`127.0.0.1:${port}`]));
+  // iframe の読み込みも許可して、iframe を使う経路まで確かめる。
+  configure(settings([`127.0.0.1:${port}`], ["self"]));
   toggleHits = 0;
   await checkInteraction({ url });
-  assert.ok(toggleHits >= 2);
+  assert.ok(toggleHits >= 3);
 
-  configure({ ...settings([`127.0.0.1:${port}`]), storageState: file });
+  configure({ ...settings([`127.0.0.1:${port}`], ["self"]), storageState: file });
   toggleHits = 0;
   const frozen = await checkInteraction({ url });
   assert.equal(toggleHits, 0);

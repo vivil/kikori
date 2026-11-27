@@ -116,7 +116,7 @@ const frozen = new WeakSet<Page>();
 const socketsOf = new WeakMap<Page, WebSocketRoute[]>();
 
 /**
- * このページからの通信を凍結する。以後、ページの移動以外の要求はすべて止まり、開いている WebSocket も閉じる。
+ * このページからの通信を凍結する。以後、すべての要求が止まり、開いている WebSocket も閉じる。
  * ログイン済みの状態で操作を試すとき、本人の権限で何かが実行されるのを防ぐために使う。元には戻せない。
  */
 export function freezeNetwork(page: Page): void {
@@ -167,6 +167,8 @@ export async function withPage<T>(options: PageOptions, run: (page: Page) => Pro
       // デスクトップで拡大したときの挙動を再現するため、モバイル扱いにはしない。
       isMobile: false,
       reducedMotion: "reduce",
+      // Service Worker が出す要求は、下の確認を通らない。宛先の制限をすり抜けないよう、登録させない。
+      serviceWorkers: "block",
       // ログイン済みの状態を読み込む。開いてよいホストに属さない Cookie は、持ち込まない。
       ...(storageState ? { storageState } : {}),
     });
@@ -225,9 +227,10 @@ export async function withPage<T>(options: PageOptions, run: (page: Page) => Pro
       } catch {
         return route.abort("blockedbyclient");
       }
+      // 通信を凍結している間は、ここに届いた要求をすべて止める。iframe の読み込みも、
+      // 新しく開いたウィンドウからの要求も含む。
+      if (frozen.has(page)) return route.abort("blockedbyclient");
       if (!request.isNavigationRequest()) {
-        // 通信を凍結している間は、ページの移動以外の要求をすべて止める。
-        if (frozen.has(page)) return route.abort("blockedbyclient");
         if (resourceAllowed(target)) return route.fallback();
         blockedResources.add(target.protocol === "file:" ? target.pathname : target.host);
         return route.abort("blockedbyclient");
