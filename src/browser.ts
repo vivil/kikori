@@ -124,6 +124,34 @@ export function freezeNetwork(page: Page): void {
   for (const socket of socketsOf.get(page) ?? []) void socket.close({ code: 1001, reason: "frozen" }).catch(() => undefined);
 }
 
+/**
+ * ページが落ち着くのを待ってから、共通の関数を登録する。
+ * meta refresh などで読み込みの直後に別のページへ移るサイトでは、移った先を検査の対象にする。
+ */
+async function settle(page: Page, timeout: number): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await page.waitForLoadState("load", { timeout });
+      // すぐに移動する指定があれば、移動が始まるのを少しだけ待つ。
+      const delay = await page.evaluate(() => {
+        const content = document.querySelector('meta[http-equiv="refresh" i]')?.getAttribute("content") ?? "";
+        const match = /^\s*(\d+(?:\.\d+)?)\s*[;,]/.exec(content);
+        return match ? Number(match[1]) : null;
+      });
+      if (delay !== null && delay <= 1 && attempt === 0) {
+        await page.waitForEvent("framenavigated", { timeout: delay * 1000 + 1500 }).catch(() => undefined);
+        continue;
+      }
+      await page.evaluate(installHelpers);
+      return;
+    } catch (error) {
+      // 移動の途中で問い合わせると失敗する。移動が終わってからやり直す。
+      const moving = error instanceof Error && /Execution context was destroyed|navigation|Cannot find context/i.test(error.message);
+      if (!moving || attempt >= 4) throw error;
+    }
+  }
+}
+
 /** 検査の結果に、利用者へ伝える補足を足す。 */
 function addNote(result: unknown, note: string): void {
   if (typeof result !== "object" || result === null || Array.isArray(result)) return;
@@ -215,6 +243,8 @@ export async function withPage<T>(options: PageOptions, run: (page: Page) => Pro
       return SAFE_SCHEMES.has(target.protocol);
     };
     const blockedResources = new Set<string>();
+    /** ページそのものの移動を止めたときの、移動しようとした先 */
+    let blockedTop: URL | undefined;
     const sockets: WebSocketRoute[] = [];
     let page!: Page;
 
@@ -240,7 +270,9 @@ export async function withPage<T>(options: PageOptions, run: (page: Page) => Pro
         blockedFrames.add(target.protocol === "file:" ? target.pathname : target.origin);
         return route.abort("blockedbyclient");
       }
-      return topAllowed(target) ? route.fallback() : route.abort("blockedbyclient");
+      if (topAllowed(target)) return route.fallback();
+      blockedTop = target;
+      return route.abort("blockedbyclient");
     });
     // WebSocket は上の仕組みを通らないので、別に確かめる。
     await context.routeWebSocket(/.*/, (ws) => {
@@ -314,7 +346,19 @@ export async function withPage<T>(options: PageOptions, run: (page: Page) => Pro
       await page.waitForTimeout(options.waitMs);
     }
     assertStayed();
-    await page.evaluate(installHelpers);
+    await settle(page, timeout);
+    // 移動を止めた結果、ブラウザのエラー画面が残っていることがある。その画面を検査しても意味がない。
+    if (page.url().startsWith("chrome-error://")) {
+      throw new Error(
+        blockedTop
+          ? tr(
+              `ページが、開いてよいホストに含まれない ${blockedTop.host} へすぐに移動しようとしました。移動した先を検査するには、起動時のオプション --allow-host で指定してください。`,
+              `The page immediately tried to move to ${blockedTop.host}, which is not among the allowed hosts. To audit the destination, start the server with --allow-host.`,
+            )
+          : tr("ページを読み込めませんでした。", "The page could not be loaded."),
+      );
+    }
+    assertStayed();
     const result = await run(page);
     assertStayed();
     if (blockedResources.size > 0) {

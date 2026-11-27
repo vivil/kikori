@@ -113,6 +113,21 @@ export async function checkKeyboardFocus(options: FocusOptions): Promise<CheckRe
       }
       frameSteps = 0;
 
+      if (previous && previous.index === state.index) {
+        // Tab を押しても、同じ要素にフォーカスが戻ってくる。
+        findings.push({
+          sc: SC.noKeyboardTrap,
+          severity: "review",
+          selector: state.info.selector,
+          message: tr(
+            "Tab キーを押しても、フォーカスがこの要素から動きません。別のキーで抜けられるか、その方法が利用者に伝わっているか確認してください。",
+            "Pressing Tab does not move focus away from this element. Check that another key lets users leave, and that they are told how.",
+          ),
+          details: { loop: [state.info.selector] },
+        });
+        break;
+      }
+
       if (state.revisit) {
         if (sequence[0]?.selector === state.info.selector) {
           completed = true;

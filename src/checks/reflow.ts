@@ -44,6 +44,11 @@ export async function checkReflow(options: ReflowOptions): Promise<CheckResult> 
     await page.evaluate((limit) => window.__kikori.collectText(limit), TEXT_LIMIT);
     const before = await page.evaluate(() => window.__kikori.measureText());
 
+    // 1.4.4: 200% に拡大した状態 (幅 640px) で、文字が切れていないか。もとから切れているものも含めて拾う。
+    await page.setViewportSize({ width: BASELINE.width / 2, height: BASELINE.height / 2 });
+    await page.waitForTimeout(200);
+    const zoomed = await page.evaluate(() => window.__kikori.measureText());
+
     await page.setViewportSize(viewport);
     await page.waitForTimeout(300);
 
@@ -124,7 +129,38 @@ export async function checkReflow(options: ReflowOptions): Promise<CheckResult> 
       }
     }
 
+    const clippedWhenZoomed: number[] = [];
+    zoomed.forEach((m, i) => {
+      if (m.visible && m.clipped) clippedWhenZoomed.push(i);
+    });
+    if (clippedWhenZoomed.length > 0) {
+      const infos = await page.evaluate(
+        (indexes) => indexes.map((i) => window.__kikori.describe(window.__kikori.textElement(i)!)),
+        clippedWhenZoomed.slice(0, MAX_REPORTED),
+      );
+      for (const info of infos) {
+        findings.push({
+          sc: SC.resizeText,
+          severity: "review",
+          selector: info.selector,
+          message: tr(
+            "200% に拡大すると、文字が親要素の overflow で切れています。切れた内容をほかの手段で読めるか確認してください。読めない場合は、高さや幅を固定せず、内容に合わせて伸びるようにしてください。",
+            "At 200% zoom the text is clipped by an ancestor's overflow. Check that the clipped content can be read some other way. If not, do not fix the height or width; let the box grow with its content.",
+          ),
+          details: { text: info.text },
+        });
+      }
+    }
+
     const notes: string[] = [];
+    if (clippedWhenZoomed.length > MAX_REPORTED) {
+      notes.push(
+        tr(
+          `200% に拡大すると文字が切れる要素は ${clippedWhenZoomed.length} 件あり、先頭の ${MAX_REPORTED} 件だけを報告しています。`,
+          `${clippedWhenZoomed.length} elements have clipped text at 200% zoom; only the first ${MAX_REPORTED} are reported.`,
+        ),
+      );
+    }
     if (report.overflowing.length > MAX_REPORTED) {
       notes.push(tr(`はみ出した要素は ${report.overflowing.length} 件あり、はみ出し量の大きい ${MAX_REPORTED} 件だけを報告しています。`, `${report.overflowing.length} elements overflow; only the ${MAX_REPORTED} largest are reported.`));
     }
@@ -138,7 +174,7 @@ export async function checkReflow(options: ReflowOptions): Promise<CheckResult> 
       viewport,
       summary: summarize(findings),
       findings,
-      checked: ["1.4.10"],
+      checked: ["1.4.4", "1.4.10"],
       data: { viewportWidth: report.viewportWidth, documentScrollWidth: report.documentScrollWidth },
       ...(notes.length > 0 ? { notes } : {}),
     };

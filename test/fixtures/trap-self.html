@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>フォーカスが動かないページ</title>
+</head>
+<body>
+<main>
+  <h1>フォーカスが動かないページ</h1>
+  <p><button id="stuck" type="button" onblur="setTimeout(() => this.focus(), 10)">フォーカスを離さないボタン</button></p>
+  <p><button id="unreachable" type="button">届かないボタン</button></p>
+</main>
+</body>
+</html>
