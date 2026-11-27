@@ -1,6 +1,7 @@
 import { tr } from "../i18n.js";
 import type { Page } from "playwright";
 import { withPage } from "../browser.js";
+import { getSettings } from "../config.js";
 import { SC, summarize, type CheckResult, type Finding } from "../types.js";
 import type { ElementInfo } from "../helpers.js";
 import { collectListeners } from "../listeners.js";
@@ -44,6 +45,8 @@ export async function checkInteraction(options: InteractionOptions): Promise<Che
     const inapplicable: string[] = [];
     const needsJudgment: string[] = [];
 
+    /** 操作を試している最中か。ログイン済みの状態を読み込んでいるときだけ、通信の制限を強める。 */
+    let probing = false;
     const navigations: { url: string; method: string }[] = [];
     let popups = 0;
     page.on("popup", (popup) => {
@@ -57,6 +60,9 @@ export async function checkInteraction(options: InteractionOptions): Promise<Che
         return route.abort();
       }
       if (request.method() !== "GET" && request.method() !== "HEAD") return route.abort();
+      // ログイン済みの状態で操作を試す間は、GET であってもスクリプトからの通信を止める。
+      // 本人の権限で、設定の切り替えなどが実行されるのを防ぐ。
+      if (probing && ["xhr", "fetch", "eventsource", "websocket"].includes(request.resourceType())) return route.abort();
       // 起動時に決めた宛先の制限へ処理を引き継ぐ。
       return route.fallback();
     });
@@ -161,6 +167,7 @@ export async function checkInteraction(options: InteractionOptions): Promise<Che
     }
 
     // --- 2.1.4: 文字キーだけで動くショートカットがないか ---
+    probing = getSettings().storageState !== null;
     const reacted = await probeCharacterKeys(page, navigations);
     if (reacted.length > 0) {
       findings.push({

@@ -7,19 +7,33 @@ import type { AddressInfo } from "node:net";
 import { after, before, test } from "node:test";
 import { assertAllowedUrl, withPage } from "../src/browser.js";
 import { checkReflow } from "../src/checks/reflow.js";
-import { configure, getSettings, isHostAllowed, LOOPBACK_HOSTS, parseArgs, type Settings } from "../src/config.js";
+import { checkInteraction } from "../src/checks/interaction.js";
+import { configure, filterStorageState, getSettings, isHostAllowed, LOOPBACK_HOSTS, parseArgs, type Settings } from "../src/config.js";
 
 const settings = (hosts: string[] | null, frames: string[] = []): Settings => ({ lang: "ja", allowedHosts: hosts, allowedFrameHosts: frames, fileRoot: null, allowFile: true, autoInstall: true, storageState: null });
 const original = getSettings();
 let server: Server;
 let port: number;
 const pixelHits: string[] = [];
+let toggleHits = 0;
 
 before(async () => {
   server = createServer((req, res) => {
     if (req.url === "/redirect") {
       // 許可していないホスト (localhost) へ転送する。
       res.writeHead(302, { location: `http://localhost:${port}/page` }).end();
+      return;
+    }
+    if (req.url === "/toggle") {
+      toggleHits++;
+      res.writeHead(204).end();
+      return;
+    }
+    if (req.url === "/settings") {
+      // チェックを切り替えると、GET の通信で設定を書き換える作りのページ。
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      res.end(`<!doctype html><html lang="ja"><title>設定</title><body><h1>設定</h1>
+        <label><input id="notify" type="checkbox" onchange="fetch('/toggle')"> 通知を受け取る</label></body></html>`);
       return;
     }
     if (req.url === "/members") {
@@ -282,6 +296,49 @@ test("ログイン済みの状態: 指定すると、ログイン後のページ
   assert.equal(await heading(), "会員ページ");
   const audited = await checkReflow({ url: `http://127.0.0.1:${port}/members` });
   assert.equal(audited.check, "reflow");
+});
+
+test("ログイン済みの状態: 開いてよいホストに属さない Cookie とローカルストレージは持ち込まない", () => {
+  const state = {
+    cookies: [
+      { name: "a", domain: "app.example.com", secure: true },
+      { name: "b", domain: ".example.com", secure: true },
+      { name: "c", domain: "tracker.test", secure: false },
+      { name: "d", domain: "localhost", secure: false },
+    ],
+    origins: [{ origin: "https://app.example.com" }, { origin: "https://tracker.test" }],
+  };
+  const only = (hosts: string[] | null): { cookies: string[]; origins: string[] } => {
+    const filtered = filterStorageState(state, settings(hosts));
+    return { cookies: filtered.cookies.map((c) => c.name), origins: filtered.origins.map((o) => o.origin) };
+  };
+  // .example.com の Cookie は app.example.com にも送られるので、残す。
+  assert.deepEqual(only(["app.example.com"]), { cookies: ["a", "b"], origins: ["https://app.example.com"] });
+  assert.deepEqual(only(["*.example.com"]), { cookies: ["a", "b"], origins: ["https://app.example.com"] });
+  assert.deepEqual(only(["other.example.com"]), { cookies: ["b"], origins: [] });
+  // ポートつきの指定でも、Cookie はホスト名で照合する。
+  assert.deepEqual(only(["localhost:3000"]), { cookies: ["d"], origins: [] });
+  assert.deepEqual(only(["example.org"]), { cookies: [], origins: [] });
+  // すべてのホストを許可しているときは、そのまま使う。
+  assert.equal(only(null).cookies.length, 4);
+});
+
+test("ログイン済みの状態: 操作を試す間は、スクリプトからの通信を止める", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "kikori-state-"));
+  const file = path.join(dir, "state.json");
+  writeFileSync(file, JSON.stringify({ cookies: [{ name: "session", value: "valid", domain: "127.0.0.1", path: "/", expires: -1, httpOnly: true, secure: false, sameSite: "Lax" }], origins: [] }));
+  const url = `http://127.0.0.1:${port}/settings`;
+
+  // 状態を読み込んでいなければ、チェックの切り替えで通信が届く。
+  configure(settings([`127.0.0.1:${port}`]));
+  toggleHits = 0;
+  await checkInteraction({ url });
+  assert.ok(toggleHits >= 1);
+
+  configure({ ...settings([`127.0.0.1:${port}`]), storageState: file });
+  toggleHits = 0;
+  await checkInteraction({ url });
+  assert.equal(toggleHits, 0);
 });
 
 test("ログイン済みの状態: ファイルを読めないときは、起動時に知らせる", () => {

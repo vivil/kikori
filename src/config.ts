@@ -264,3 +264,51 @@ function matchesAny(url: URL, patterns: string[]): boolean {
     return hostname === patternHost;
   });
 }
+
+interface StoredCookie {
+  domain?: string;
+  secure?: boolean;
+}
+
+export interface StorageState {
+  cookies?: StoredCookie[];
+  origins?: { origin?: string }[];
+}
+
+/**
+ * 保存された状態から、開いてよいホストに属さない Cookie とローカルストレージを取り除く。
+ * ログイン済みの状態は、検査の対象にしたホストにだけ持ち込む。
+ */
+export function filterStorageState<T extends StorageState>(state: T, settings: Settings = current): T {
+  if (!settings.allowedHosts) return state;
+  // Cookie はポートを区別しないので、ホスト名だけで照合する。
+  const hosts = settings.allowedHosts.map((pattern) => /^(\[[^\]]+\]|[^:]+)/.exec(pattern)?.[1] ?? pattern);
+  /** 開いてよいホストのどれかが、その Cookie を受け取るか */
+  const cookieAllowed = (cookie: StoredCookie): boolean => {
+    const raw = (cookie.domain ?? "").toLowerCase();
+    // 先頭に . の付いた Cookie は、サブドメインにも送られる。
+    const shared = raw.startsWith(".");
+    const domain = shared ? raw.slice(1) : raw;
+    if (domain === "") return false;
+    return hosts.some((host) => {
+      if (host.startsWith("*.")) {
+        const parent = host.slice(2);
+        if (domain.endsWith(`.${parent}`)) return true;
+        return shared && (domain === parent || parent.endsWith(`.${domain}`));
+      }
+      return domain === host || (shared && host.endsWith(`.${domain}`));
+    });
+  };
+  const originAllowed = (origin: string | undefined): boolean => {
+    try {
+      return origin !== undefined && isHostAllowed(new URL(origin), settings);
+    } catch {
+      return false;
+    }
+  };
+  return {
+    ...state,
+    cookies: (state.cookies ?? []).filter(cookieAllowed),
+    origins: (state.origins ?? []).filter((entry) => originAllowed(entry.origin)),
+  };
+}

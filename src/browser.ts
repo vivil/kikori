@@ -1,9 +1,9 @@
 import { tr } from "./i18n.js";
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { chromium, type Browser, type Page } from "playwright";
-import { getSettings, isFrameHostAllowed, isHostAllowed } from "./config.js";
+import { chromium, type Browser, type BrowserContextOptions, type Page } from "playwright";
+import { filterStorageState, getSettings, isFrameHostAllowed, isHostAllowed, type StorageState } from "./config.js";
 import { installHelpers } from "./helpers.js";
 import { launchWithInstall, MissingBrowserError } from "./install.js";
 
@@ -145,14 +145,18 @@ export async function withPage<T>(options: PageOptions, run: (page: Page) => Pro
             ),
       );
     }
+    const statePath = getSettings().storageState;
+    const storageState = statePath
+      ? (filterStorageState(JSON.parse(readFileSync(statePath, "utf8")) as StorageState) as NonNullable<BrowserContextOptions["storageState"]>)
+      : undefined;
     const context = await browser.newContext({
       viewport: options.viewport,
       deviceScaleFactor: 1,
       // デスクトップで拡大したときの挙動を再現するため、モバイル扱いにはしない。
       isMobile: false,
       reducedMotion: "reduce",
-      // ログイン済みの状態を読み込む。Cookie は、ブラウザがその持ち主のホストにだけ送る。
-      ...(getSettings().storageState ? { storageState: getSettings().storageState as string } : {}),
+      // ログイン済みの状態を読み込む。開いてよいホストに属さない Cookie は、持ち込まない。
+      ...(storageState ? { storageState } : {}),
     });
     const SAFE_SCHEMES = new Set(["about:", "data:", "blob:", "chrome-error:"]);
     /** iframe が読み込んでよい URL か。data: や about:blank は親のページ自身の内容なので止めない。 */
