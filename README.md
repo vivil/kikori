@@ -114,21 +114,21 @@ The browser is launched seven times per page, so each page takes around five sec
 
 ## Getting started
 
-Node.js 26 or later is required.
+Node.js 22 or later is required.
 
-First, install the browser that kikori uses for its checks. This is needed once.
-
-```sh
-npx kikori install
-```
-
-On Linux, add `--with-deps` to install the system libraries the browser needs as well. The command asks the Playwright that kikori depends on to do the installation, so the browser always matches. Running `npx playwright install` yourself may fetch a browser for a different Playwright version.
-
-Then register kikori with Claude Code.
+Register kikori with Claude Code. That is all.
 
 ```sh
 claude mcp add kikori -- npx -y kikori
 ```
+
+The first check downloads the browser kikori uses (headless Chromium, about 300 MB on disk). This happens once and takes a few seconds to a minute, depending on the network.
+
+- On Linux, the browser may need system libraries. Install them together with the browser by running `npx kikori install --with-deps`.
+- To download the browser ahead of time, for example in a container image, run `npx kikori install`.
+- To forbid the automatic download, start the server with `--no-auto-install`.
+
+The download is done by the Playwright that kikori depends on, so the browser always matches. Running `npx playwright install` yourself may fetch a browser for a different Playwright version.
 
 ### Agent skill (optional)
 
@@ -159,6 +159,7 @@ Results include screenshots and text from the page. So that a misled model canno
 | `--allow-frame-host <host>` | `KIKORI_ALLOWED_FRAME_HOSTS` | Host that iframes in the page may load. When omitted, every iframe load is blocked |
 | `--file-root <path>` | `KIKORI_FILE_ROOT` | Directory that `file` URLs may be opened from. Defaults to the directory the server was started in |
 | `--no-file` | `KIKORI_NO_FILE=1` | Refuse `file` URLs |
+| `--no-auto-install` | `KIKORI_NO_AUTO_INSTALL=1` | Do not download the browser automatically when it is missing |
 
 With no options, only servers on your own machine (`localhost`, `*.localhost`, `127.0.0.1`, `[::1]`) can be audited. Auditing a site under development needs no configuration.
 

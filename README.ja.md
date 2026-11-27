@@ -114,21 +114,21 @@ Claude Code などのエージェントから呼び出すと、指摘が達成�
 
 ## 使い方
 
-Node.js 26 以上が必要です。
+Node.js 22 以上が必要です。
 
-最初に、検査に使うブラウザを入れます。1 回だけ実行すれば足ります。
-
-```sh
-npx kikori install
-```
-
-Linux では、`--with-deps` を付けると、ブラウザに必要なライブラリもあわせて入ります。このコマンドは、kikori が依存している Playwright にブラウザを入れさせるので、版が食い違いません。`npx playwright install` を直接実行すると、別の版の Playwright 向けのブラウザが入ることがあります。
-
-次に、Claude Code に登録します。
+Claude Code に登録します。準備はこれだけです。
 
 ```sh
 claude mcp add kikori -- npx -y kikori
 ```
+
+最初の検査のときに、kikori が使うブラウザ (ヘッドレスの Chromium、ディスク上で約 300 MB) をダウンロードします。ダウンロードは 1 回だけで、回線によって数秒から 1 分ほどかかります。
+
+- Linux では、ブラウザにシステムのライブラリが必要なことがあります。`npx kikori install --with-deps` を実行すると、ブラウザとあわせて入ります。
+- コンテナのイメージを作るときなど、前もってブラウザを入れておくには、`npx kikori install` を実行します。
+- 自動でのダウンロードを禁じるには、`--no-auto-install` を付けてサーバーを起動します。
+
+ダウンロードは、kikori が依存している Playwright が行うので、ブラウザの版が食い違いません。`npx playwright install` を直接実行すると、別の版の Playwright 向けのブラウザが入ることがあります。
 
 ### エージェント用のスキル (任意)
 
@@ -159,6 +159,7 @@ http://localhost:3000/ を audit_page でレベル AA まで検査して、fail 
 | `--allow-frame-host <ホスト>` | `KIKORI_ALLOWED_FRAME_HOSTS` | ページの中の iframe が読み込んでよいホスト。指定しないときは、iframe の読み込みをすべて止めます |
 | `--file-root <パス>` | `KIKORI_FILE_ROOT` | `file` の URL で開いてよいディレクトリ。既定では、サーバーを起動したディレクトリです |
 | `--no-file` | `KIKORI_NO_FILE=1` | `file` の URL を受け付けません |
+| `--no-auto-install` | `KIKORI_NO_AUTO_INSTALL=1` | ブラウザがないとき、自動ではダウンロードしません |
 
 何も指定しなければ、自分のコンピューターで動くサーバー (`localhost`、`*.localhost`、`127.0.0.1`、`[::1]`) だけを検査できます。開発中のサイトを検査するなら、設定は要りません。
 
