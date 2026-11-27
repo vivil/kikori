@@ -114,7 +114,7 @@ Claude Code などのエージェントから呼び出すと、指摘が達成�
 
 ## 使い方
 
-Node.js 22 以上が必要です。
+Node.js 26 以上が必要です。
 
 ```sh
 npm install
@@ -273,6 +273,18 @@ npm test
 `test/fixtures` に、問題のあるページと問題のないページを置いています。
 
 `fixtures-src/frameworks` には、React、Vue、Angular で同じ不具合を仕込んだサンプルがあります。`npm test` の中で esbuild がまとめ、3 つとも同じ指摘が出ることを確かめます。
+
+プルリクエストと `main` への push のたびに、GitHub Actions で同じテストが走ります。
+
+コミットメッセージとプルリクエストのタイトルは、[Conventional Commits](https://www.conventionalcommits.org) に従います。種別は Angular の規約に合わせ、`build`、`chore`、`ci`、`docs`、`feat`、`fix`、`perf`、`refactor`、`revert`、`style`、`test` を使います。GitHub Actions が commitlint で確かめます。手元では `npx commitlint --from main` で確かめられます。
+
+## リリースの手順
+
+1. `package.json` の `version` を更新し (`npm version minor` など)、その変更を `main` に取り込みます。
+2. `v` にそのバージョンを続けたタグ (`v0.2.0` など) で、GitHub のリリースを公開します。
+3. リリース用のワークフローがテストを実行し、パッケージを npm へ公開します。
+
+ワークフローは npm の trusted publishing で認証するため、リポジトリに npm のトークンを置きません。タグが `package.json` のバージョンと一致しないときは、公開せずに止まります。
 
 ## 今後の予定
 

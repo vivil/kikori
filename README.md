@@ -114,7 +114,7 @@ The browser is launched seven times per page, so each page takes around five sec
 
 ## Getting started
 
-Node.js 22 or later is required.
+Node.js 26 or later is required.
 
 ```sh
 npm install
@@ -273,6 +273,18 @@ npm test
 `test/fixtures` holds pages with and without problems.
 
 `fixtures-src/frameworks` holds samples with the same defects written in React, Vue and Angular. `npm test` bundles them with esbuild and checks that all three produce the same findings.
+
+Every pull request and every push to `main` runs the same tests in GitHub Actions.
+
+Commit messages and pull request titles follow [Conventional Commits](https://www.conventionalcommits.org) with the types of the Angular convention: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style` and `test`. GitHub Actions checks them with commitlint. To check locally, run `npx commitlint --from main`.
+
+## Releasing
+
+1. Update `version` in `package.json` (for example with `npm version minor`) and merge the change into `main`.
+2. Publish a GitHub release whose tag is `v` followed by that version, such as `v0.2.0`.
+3. The release workflow runs the tests and publishes the package to npm.
+
+The workflow authenticates with npm trusted publishing, so no npm token is stored in the repository. It stops if the tag does not match the version in `package.json`.
 
 ## Roadmap
 

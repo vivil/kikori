@@ -33,7 +33,7 @@
     "LICENSE"
   ],
   "engines": {
-    "node": ">=22"
+    "node": ">=26"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -53,6 +53,8 @@
     "@angular/compiler": "^22.3.0",
     "@angular/core": "^22.3.0",
     "@angular/platform-browser": "^22.3.0",
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
     "@types/node": "^22.20.7",
     "esbuild": "^0.28.2",
     "react": "^19.3.1",
