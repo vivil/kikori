@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>テキスト間隔に問題のあるページ</title>
+<style>
+  body { margin: 1rem; font-family: sans-serif; font-size: 16px; line-height: 1.2; }
+  #clipped { width: 200px; height: 40px; overflow: hidden; }
+  #spill { width: 200px; height: 40px; }
+  #ok { width: 200px; }
+</style>
+</head>
+<body>
+  <div id="clipped">高さを固定して overflow を隠している箱です。</div>
+  <div id="spill">高さだけを固定していて、あふれた文字が下の段落に重なる箱です。</div>
+  <p id="next">すぐ下に続く段落です。</p>
+  <p id="ok">高さを固定していないので、内容に合わせて伸びる段落です。</p>
+</body>
+</html>

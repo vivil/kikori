@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>axe で見つかる問題のあるページ</title>
+<style>
+  body { margin: 1rem; font-family: sans-serif; }
+  #faint { color: #bbb; background: #fff; }
+  #dim { color: #666; background: #fff; }
+</style>
+</head>
+<body>
+<main>
+  <h1>axe で見つかる問題のあるページ</h1>
+  <p><img id="no-alt" src="data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=" width="40" height="40"></p>
+  <p id="faint">背景との差が小さく、読みにくい文字です。</p>
+  <p id="dim">AA は満たしますが、AAA には届かない文字です。</p>
+  <p><input id="unlabelled" type="text"></p>
+</main>
+</body>
+</html>

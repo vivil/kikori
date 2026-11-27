@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>操作に問題のあるページ</title>
+<style>
+  body { margin: 2rem; font-family: sans-serif; background: #fff; }
+  .tip-wrap { position: relative; display: inline-block; margin-right: 6rem; }
+  .tip { display: none; position: absolute; top: 3.5rem; left: 0; padding: 0.5rem; background: #222; color: #fff; white-space: nowrap; }
+  #fragile:hover + .tip { display: block; }
+  #sturdy-wrap:hover .tip { display: block; top: 100%; }
+  #faint-input { border: 1px solid #ddd; background: #fff; }
+  #clear-input { border: 1px solid #555; background: #fff; }
+  #dialog { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>操作に問題のあるページ</h1>
+  <span class="tip-wrap"><button id="fragile" type="button">離れると消える説明</button><span id="fragile-tip" class="tip">ポインタを載せられない説明</span></span>
+  <span id="sturdy-wrap" class="tip-wrap"><button id="sturdy" type="button">残る説明</button><span id="sturdy-tip" class="tip">ポインタを載せても残る説明</span></span>
+  <p><label>並び順 <select id="sort" onchange="location.href = 'good.html?sort=' + this.value"><option value="new">新しい順</option><option value="old">古い順</option></select></label></p>
+  <p><label>絞り込み <select id="quiet"><option>すべて</option><option>未読</option></select></label></p>
+  <p><label>薄い枠の欄 <input id="faint-input" type="text"></label></p>
+  <p><label>濃い枠の欄 <input id="clear-input" type="text"></label></p>
+  <div id="drag-area" style="width: 100px; height: 40px; background: #eee;">ドラッグする領域</div>
+  <div id="toast" class="toast">保存しました</div>
+  <div id="dialog">ショートカットで開く領域</div>
+</main>
+<script>
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "s" && !event.ctrlKey && !event.metaKey) document.getElementById("dialog").style.display = "block";
+    if (event.key === "Escape") document.getElementById("dialog").style.display = "none";
+  });
+  document.getElementById("drag-area").addEventListener("pointerdown", () => {});
+  document.getElementById("drag-area").addEventListener("touchmove", () => {});
+</script>
+</body>
+</html>

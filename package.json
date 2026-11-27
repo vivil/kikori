@@ -1,0 +1,64 @@
+{
+  "name": "kikori",
+  "version": "0.1.0",
+  "description": "Kikori (lumberjack): an MCP server that audits WCAG 2.1 in a real browser, beyond what axe-core can check",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "accessibility",
+    "a11y",
+    "wcag",
+    "axe",
+    "axe-core",
+    "playwright",
+    "audit"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vivil/kikori.git"
+  },
+  "homepage": "https://github.com/vivil/kikori#readme",
+  "bugs": {
+    "url": "https://github.com/vivil/kikori/issues"
+  },
+  "type": "module",
+  "bin": {
+    "kikori": "dist/src/index.js"
+  },
+  "files": [
+    "dist/src",
+    "README.md",
+    "README.ja.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/src/index.js",
+    "test": "npm run build && npm run build:fixtures && KIKORI_LANG=ja node --test --test-concurrency=1 \"dist/test/*.test.js\"",
+    "build:fixtures": "node scripts/build-fixtures.mjs",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "axe-core": "^4.14.1",
+    "playwright": "^1.63.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@angular/common": "^22.3.0",
+    "@angular/compiler": "^22.3.0",
+    "@angular/core": "^22.3.0",
+    "@angular/platform-browser": "^22.3.0",
+    "@types/node": "^22.20.7",
+    "esbuild": "^0.28.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "rxjs": "^7.8.2",
+    "typescript": "^7.0.2",
+    "vue": "^3.5.46"
+  }
+}

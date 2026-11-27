@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>フォーカスに問題のあるページ</title>
+<style>
+  body { margin: 0; font-family: sans-serif; }
+  header { position: fixed; top: 0; left: 0; right: 0; height: 80px; background: #223; z-index: 10; }
+  main { padding: 100px 1rem 1rem; }
+  #no-ring:focus { outline: none; }
+  #covered { position: absolute; top: 20px; left: 20px; }
+  #late { margin-top: 200px; }
+  .fake { display: inline-block; padding: 0.5rem; border: 1px solid #555; }
+</style>
+</head>
+<body>
+<header></header>
+<main>
+  <p><a id="ok-link" href="#a">表示のあるリンク</a></p>
+  <p><button id="no-ring" type="button">表示のないボタン</button></p>
+  <p><button id="covered" type="button">ヘッダーに隠れるボタン</button></p>
+  <p><button id="late" type="button">下のボタン</button></p>
+  <p><a id="jump" href="#b" tabindex="1">先に回るリンク</a></p>
+  <div id="fake-button" class="fake" role="button">届かないボタン</div>
+  <div id="click-only" class="fake" onclick="void 0">クリックだけの領域</div>
+</main>
+</body>
+</html>

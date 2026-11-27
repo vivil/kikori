@@ -1,0 +1,186 @@
+import assert from "node:assert/strict";
+import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
+import { after, before, test } from "node:test";
+import { assertAllowedUrl, withPage } from "../src/browser.js";
+import { checkReflow } from "../src/checks/reflow.js";
+import { configure, getSettings, isHostAllowed, parseArgs, type Settings } from "../src/config.js";
+
+const settings = (hosts: string[] | null, frames: string[] = []): Settings => ({ lang: "ja", allowedHosts: hosts, allowedFrameHosts: frames, fileRoot: null, allowFile: true });
+const original = getSettings();
+let server: Server;
+let port: number;
+
+before(async () => {
+  server = createServer((req, res) => {
+    if (req.url === "/redirect") {
+      // 許可していないホスト (localhost) へ転送する。
+      res.writeHead(302, { location: `http://localhost:${port}/page` }).end();
+      return;
+    }
+    if (req.url === "/framed") {
+      // 同じホストの iframe と、別のホスト (localhost) の iframe を 1 つずつ持つ。
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      res.end(`<!doctype html><html lang="ja"><title>枠のあるページ</title><body><h1>枠のあるページ</h1>
+        <iframe id="same" title="同じホスト" src="/inner"></iframe>
+        <iframe id="other" title="別のホスト" src="http://localhost:${port}/inner"></iframe></body></html>`);
+      return;
+    }
+    if (req.url === "/inner") {
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      res.end(`<!doctype html><html lang="ja"><title>中身</title><body><p id="secret">枠の中の文章</p></body></html>`);
+      return;
+    }
+    if (req.url === "/late") {
+      // 読み込みのあと、同じホストの転送用の URL を経由して、許可していないホストへ移動する。
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      res.end(`<!doctype html><html lang="ja"><title>あとで移動</title><body><h1>あとで移動</h1><script>setTimeout(() => (location.href = "/redirect"), 50)</script></body></html>`);
+      return;
+    }
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+    res.end(`<!doctype html><html lang="ja"><title>ページ</title><body><h1>ページ</h1><p>本文です。</p></body></html>`);
+  });
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  port = (server.address() as AddressInfo).port;
+});
+
+after(() => {
+  configure(original);
+  server.close();
+});
+
+test("起動時の引数: ホストの一覧、file: の範囲、無効化を読む", () => {
+  const { settings: parsed } = parseArgs(["--allow-host", "localhost:3000,Example.com", "--allow-host=*.example.org", "--allow-frame-host", "self,player.example.com", "--file-root", "/srv/site", "--no-file"], {});
+  assert.deepEqual(parsed, {
+    lang: "en",
+    allowedHosts: ["localhost:3000", "example.com", "*.example.org"],
+    allowedFrameHosts: ["self", "player.example.com"],
+    fileRoot: "/srv/site",
+    allowFile: false,
+  });
+  assert.deepEqual(parseArgs([], {}).settings, { lang: "en", allowedHosts: null, allowedFrameHosts: [], fileRoot: null, allowFile: true });
+  assert.deepEqual(parseArgs(["--allow-frame-host", "*"], {}).settings.allowedFrameHosts, ["*"]);
+  assert.equal(parseArgs(["--help"], {}).help, true);
+});
+
+test("起動時の引数: 環境変数を読み、引数があればそちらを使う", () => {
+  const env = { KIKORI_ALLOWED_HOSTS: "a.test", KIKORI_FILE_ROOT: "/env" };
+  assert.deepEqual(parseArgs([], env).settings.allowedHosts, ["a.test"]);
+  assert.deepEqual(parseArgs(["--allow-host", "b.test"], env).settings.allowedHosts, ["b.test"]);
+  assert.equal(parseArgs(["--file-root", "/arg"], env).settings.fileRoot, "/arg");
+});
+
+test("起動時の引数: 誤った指定を拒否する", () => {
+  const ja = { KIKORI_LANG: "ja" };
+  assert.throws(() => parseArgs(["--allow-host"], ja), /値が必要/);
+  assert.throws(() => parseArgs(["--allow-host", "http://example.com/"], ja), /解釈できません/);
+  assert.throws(() => parseArgs(["--unknown"], ja), /知らないオプション/);
+  assert.throws(() => parseArgs(["--unknown"], {}), /Unknown option/);
+  assert.throws(() => parseArgs(["--lang", "fr"], {}), /must be ja or en/);
+});
+
+test("起動時の引数: 言語は、指定、環境変数、環境の言語設定の順に決まる", () => {
+  assert.equal(parseArgs([], {}).settings.lang, "en");
+  assert.equal(parseArgs([], { LANG: "ja_JP.UTF-8" }).settings.lang, "ja");
+  assert.equal(parseArgs([], { LANG: "ja_JP.UTF-8", KIKORI_LANG: "en" }).settings.lang, "en");
+  assert.equal(parseArgs(["--lang", "ja"], { KIKORI_LANG: "en" }).settings.lang, "ja");
+});
+
+test("ホストの照合: ポート、ワイルドカード、IPv6 を扱う", () => {
+  const allowed = (url: string, hosts: string[] | null): boolean => isHostAllowed(new URL(url), settings(hosts));
+  assert.equal(allowed("http://anything.test/", null), true);
+  assert.equal(allowed("http://localhost:3000/a", ["localhost:3000"]), true);
+  assert.equal(allowed("http://localhost:4000/a", ["localhost:3000"]), false);
+  assert.equal(allowed("http://localhost:4000/a", ["localhost"]), true);
+  assert.equal(allowed("https://example.com/", ["example.com:443"]), true);
+  assert.equal(allowed("https://www.example.com/", ["*.example.com"]), true);
+  assert.equal(allowed("https://example.com/", ["*.example.com"]), false);
+  assert.equal(allowed("https://evilexample.com/", ["*.example.com"]), false);
+  assert.equal(allowed("https://example.com.evil.test/", ["example.com"]), false);
+  assert.equal(allowed("http://[::1]:8080/", ["[::1]:8080"]), true);
+  assert.equal(allowed("http://169.254.169.254/", ["localhost"]), false);
+});
+
+test("宛先の制限: 許可したホストは検査でき、ほかのホストは開かない", async () => {
+  configure(settings([`127.0.0.1:${port}`]));
+  const ok = await checkReflow({ url: `http://127.0.0.1:${port}/page` });
+  assert.equal(ok.check, "reflow");
+  await assert.rejects(checkReflow({ url: `http://localhost:${port}/page` }), /開いてよいホストに含まれていません/);
+  assert.throws(() => assertAllowedUrl("http://169.254.169.254/latest/meta-data/"), /開いてよいホスト/);
+});
+
+test("宛先の制限: 許可したホストから別のホストへ転送されたら、結果を返さない", async () => {
+  configure(settings([`127.0.0.1:${port}`]));
+  await assert.rejects(checkReflow({ url: `http://127.0.0.1:${port}/redirect` }), /開いてよいホストに含まれていません/);
+});
+
+test("宛先の制限: 読み込みのあとで別のホストへ転送されても、結果を返さない", async () => {
+  configure(settings([`127.0.0.1:${port}`]));
+  await assert.rejects(checkReflow({ url: `http://127.0.0.1:${port}/late`, waitMs: 400 }), /開いてよいホストに含まれていません/);
+});
+
+/** それぞれの iframe の中身が読み込まれたかを調べる。 */
+const loadedFrames = (): Promise<Record<string, boolean>> =>
+  withPage({ url: `http://127.0.0.1:${port}/framed`, viewport: { width: 800, height: 600 }, waitMs: 200 }, async (page) => {
+    const loaded: Record<string, boolean> = {};
+    for (const id of ["same", "other"]) {
+      const frame = await (await page.$(`#${id}`))!.contentFrame();
+      loaded[id] = (await frame?.locator("#secret").count().catch(() => 0)) === 1;
+    }
+    return loaded;
+  });
+
+test("iframe: 既定ではすべての読み込みを止め、止めたことを結果に書く", async () => {
+  configure(settings(null));
+  const { same, other } = (await loadedFrames()) as { same: boolean; other: boolean };
+  assert.deepEqual({ same, other }, { same: false, other: false });
+  const result = await checkReflow({ url: `http://127.0.0.1:${port}/framed` });
+  assert.match(result.notes?.join("\n") ?? "", /iframe の読み込みを 2 件止めました/);
+});
+
+test("iframe: self は同じホストだけを、ホストの指定はそのホストだけを、* はすべてを許可する", async () => {
+  const pick = async (frames: string[]): Promise<{ same: boolean; other: boolean }> => {
+    configure(settings(null, frames));
+    const { same, other } = (await loadedFrames()) as { same: boolean; other: boolean };
+    return { same, other };
+  };
+  assert.deepEqual(await pick(["self"]), { same: true, other: false });
+  assert.deepEqual(await pick([`localhost:${port}`]), { same: false, other: true });
+  assert.deepEqual(await pick(["*"]), { same: true, other: true });
+});
+
+test("file: のページは、許可したディレクトリの外のファイルを、移動でも iframe でも読めない", async () => {
+  configure(settings(null, ["self"]));
+  const url = new URL("../../test/fixtures/good.html", import.meta.url).href;
+  const viewport = { width: 800, height: 600 };
+
+  // 移動は止めるか、止められなければ結果を返さない。どちらでも中身は外に出ない。
+  const moved = await withPage({ url, viewport }, async (page) => {
+    await page.evaluate(() => (location.href = "file:///etc/hostname")).catch(() => undefined);
+    await page.waitForTimeout(300);
+    return { url: page.url(), text: await page.locator("body").innerText().catch(() => "") };
+  }).catch(() => ({ url: "rejected", text: "" }));
+  assert.ok(!moved.url.includes("/etc/hostname"));
+  assert.equal(moved.text.trim() === "" || moved.text.includes("問題のないページ"), true);
+
+  const framed = await withPage({ url, viewport }, async (page) => {
+    await page.evaluate(() => {
+      const frame = document.createElement("iframe");
+      frame.id = "outside";
+      frame.src = "file:///etc/hostname";
+      document.body.append(frame);
+    });
+    await page.waitForTimeout(300);
+    const frame = await (await page.$("#outside"))!.contentFrame();
+    return { text: (await frame?.locator("body").innerText().catch(() => "")) ?? "" };
+  }).catch(() => ({ text: "" }));
+  assert.equal(framed.text.trim(), "");
+});
+
+test("宛先の制限: file: の URL を無効にできる", () => {
+  configure({ lang: "ja", allowedHosts: null, allowedFrameHosts: [], fileRoot: null, allowFile: false });
+  const fixture = new URL("../../test/fixtures/good.html", import.meta.url).href;
+  assert.throws(() => assertAllowedUrl(fixture), /受け付けない設定/);
+  configure(original);
+  assert.equal(assertAllowedUrl(fixture).protocol, "file:");
+});

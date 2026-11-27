@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>提示に問題のあるページ</title>
+<style>
+  body { margin: 1rem; font-family: sans-serif; font-size: 16px; }
+  #small { width: 24px; height: 24px; padding: 0; }
+  #big { min-width: 48px; min-height: 48px; }
+  #justified { text-align: justify; line-height: 1.6; max-width: 30em; }
+  #tight { line-height: 1.1; max-width: 30em; }
+  #long { line-height: 1.6; width: 1200px; }
+  #fine { line-height: 1.6; max-width: 30em; }
+  #spinner { width: 20px; height: 20px; background: #333; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<main>
+  <h1>提示に問題のあるページ</h1>
+  <button id="small" type="button" aria-label="閉じる">×</button>
+  <button id="big" type="button">十分な大きさのボタン</button>
+  <p>文章の中に置いた<a id="inline" href="#a">リンク</a>は例外にあたります。</p>
+  <p id="justified">両端揃えにした段落です。行の端をそろえるために文字の間隔が行ごとに変わり、読みにくくなります。複数の行に折り返すだけの長さがあります。</p>
+  <p id="tight">行の高さが詰まった段落です。行と行の間が狭いと、次の行の先頭を見失いやすくなります。複数の行に折り返すだけの長さがあります。</p>
+  <p id="long">一行がとても長い段落です。行が長くなると、行末から次の行の先頭へ視線を戻すのが難しくなります。この段落は幅を広く固定しているので、一行に入る文字の数が目安を大きく超えます。折り返しが起きるように、もう少し文章を続けます。読みやすい幅に収めることが大切です。</p>
+  <p id="fine">問題のない段落です。行の高さに余裕があり、幅も読みやすい範囲に収まっています。複数の行に折り返すだけの長さがあります。</p>
+  <div id="spinner"></div>
+</main>
+</body>
+</html>

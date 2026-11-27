@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>フォーカスが抜け出せないページ</title>
+</head>
+<body>
+  <p><a id="before" href="#a">手前のリンク</a></p>
+  <div id="box">
+    <button id="one" type="button">一つ目</button>
+    <button id="two" type="button">二つ目</button>
+  </div>
+  <p><a id="after" href="#b">奥のリンク</a></p>
+  <script>
+    document.getElementById("two").addEventListener("keydown", (event) => {
+      if (event.key === "Tab" && !event.shiftKey) {
+        event.preventDefault();
+        document.getElementById("one").focus();
+      }
+    });
+  </script>
+</body>
+</html>

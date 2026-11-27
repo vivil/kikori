@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>リフローに問題のあるページ</title>
+<style>
+  body { margin: 0; font-family: sans-serif; }
+  #wide { width: 900px; background: #eee; }
+  #title { width: 600px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #table-wrap table { width: 800px; }
+</style>
+</head>
+<body>
+  <p id="title">この見出しは長いため、画面の幅を狭めると途中で省略されて読めなくなります。</p>
+  <div id="wide">幅を固定した領域です。</div>
+  <div id="table-wrap"><table><tr><td>表</td><td>データ</td></tr></table></div>
+</body>
+</html>

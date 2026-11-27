@@ -1,0 +1,276 @@
+import { tr } from "../i18n.js";
+import { withPage } from "../browser.js";
+import { SC, summarize, type CheckResult, type Finding } from "../types.js";
+import type { ElementInfo } from "../helpers.js";
+
+export interface PresentationOptions {
+  url: string;
+  width?: number;
+  height?: number;
+  waitForSelector?: string;
+  waitMs?: number;
+}
+
+interface SmallTarget extends ElementInfo {
+  width: number;
+  height: number;
+}
+
+interface TextBlock extends ElementInfo {
+  justified: boolean;
+  /** 行の高さを文字サイズで割った値 */
+  lineHeightRatio: number;
+  /** 1 行に入るおよその文字数 */
+  charsPerLine: number;
+  charLimit: number;
+}
+
+interface StaticReport {
+  smallTargets: SmallTarget[];
+  textBlocks: TextBlock[];
+  autoplay: (ElementInfo & { hasControls: boolean })[];
+  hasMedia: boolean;
+  hasFormControls: boolean;
+  /** 個人の情報を集めていそうなのに、autocomplete の指定がない入力欄 */
+  missingAutocomplete: (ElementInfo & { hint: string })[];
+}
+
+interface MovingElement extends ElementInfo {
+  durationMs: number | null;
+}
+
+const MAX_REPORTED = 15;
+const MIN_TARGET = 44;
+
+export async function checkPresentation(options: PresentationOptions): Promise<CheckResult> {
+  const viewport = { width: options.width ?? 1280, height: options.height ?? 720 };
+
+  return withPage({ ...options, viewport }, async (page) => {
+    const findings: Finding[] = [];
+    const notes: string[] = [];
+    const report = await page.evaluate(collectStatic, MIN_TARGET);
+
+    for (const target of report.smallTargets.slice(0, MAX_REPORTED)) {
+      findings.push({
+        sc: SC.targetSize,
+        severity: "fail",
+        selector: target.selector,
+        message: tr(`押せる範囲が ${target.width} × ${target.height}px で、${MIN_TARGET} × ${MIN_TARGET}px に届きません。padding や min-height で広げてください。`, `The target is ${target.width} × ${target.height}px, smaller than ${MIN_TARGET} × ${MIN_TARGET}px. Enlarge it with padding or min-height.`),
+        details: { width: target.width, height: target.height, text: target.text },
+      });
+    }
+    if (report.smallTargets.length > MAX_REPORTED) {
+      notes.push(tr(`小さいターゲットは ${report.smallTargets.length} 件あり、小さい順に ${MAX_REPORTED} 件だけを報告しています。`, `${report.smallTargets.length} small targets found; only the ${MAX_REPORTED} smallest are reported.`));
+    }
+
+    const justified = report.textBlocks.filter((b) => b.justified);
+    const tight = report.textBlocks.filter((b) => b.lineHeightRatio < 1.5);
+    const long = report.textBlocks.filter((b) => b.charsPerLine > b.charLimit);
+    for (const block of justified.slice(0, MAX_REPORTED)) {
+      findings.push({
+        sc: SC.visualPresentation,
+        severity: "fail",
+        selector: block.selector,
+        message: tr("文章が両端揃えになっています。単語や文字の間隔が不ぞろいになるため、左揃えにしてください。", "The text is justified. Spacing between words and characters becomes uneven; align it to the left."),
+        details: { text: block.text },
+      });
+    }
+    for (const block of tight.slice(0, MAX_REPORTED)) {
+      findings.push({
+        sc: SC.visualPresentation,
+        severity: "fail",
+        selector: block.selector,
+        message: tr(`行の高さが文字サイズの ${block.lineHeightRatio.toFixed(2)} 倍で、1.5 倍に届きません。`, `Line height is ${block.lineHeightRatio.toFixed(2)} times the font size, below 1.5.`),
+        details: { lineHeightRatio: Number(block.lineHeightRatio.toFixed(2)), text: block.text },
+      });
+    }
+    for (const block of long.slice(0, MAX_REPORTED)) {
+      findings.push({
+        sc: SC.visualPresentation,
+        severity: "review",
+        selector: block.selector,
+        message: tr(`1 行がおよそ ${Math.round(block.charsPerLine)} 文字で、目安の ${block.charLimit} 文字を超えています。利用者が幅を狭められるか、max-width の指定を確認してください。`, `A line holds roughly ${Math.round(block.charsPerLine)} characters, above the guideline of ${block.charLimit}. Check that users can narrow the text, or set a max-width.`),
+        details: { charsPerLine: Math.round(block.charsPerLine), charLimit: block.charLimit, text: block.text },
+      });
+    }
+    const groups = [
+      [tr("両端揃え", "justified text"), justified],
+      [tr("行の高さ", "line height"), tight],
+      [tr("行の長さ", "line length"), long],
+    ] as const;
+    for (const [label, list] of groups) {
+      if (list.length > MAX_REPORTED) {
+        notes.push(tr(`${label}の指摘は ${list.length} 件あり、先頭の ${MAX_REPORTED} 件だけを報告しています。`, `${list.length} findings for ${label}; only the first ${MAX_REPORTED} are reported.`));
+      }
+    }
+
+    for (const media of report.autoplay) {
+      findings.push({
+        sc: SC.audioControl,
+        severity: "review",
+        selector: media.selector,
+        message: media.hasControls
+          ? tr("音声つきのメディアが自動で再生されます。3 秒を超えて続く場合、停止や音量調整ができるか確認してください。", "Media with sound plays automatically. If it lasts more than 3 seconds, check that it can be stopped or its volume adjusted.")
+          : tr("音声つきのメディアが自動で再生され、controls 属性もありません。3 秒を超えて続く場合は、停止や音量調整の手段が必要です。", "Media with sound plays automatically and has no controls attribute. If it lasts more than 3 seconds, a way to stop it or adjust its volume is required."),
+        details: { hasControls: media.hasControls },
+      });
+    }
+
+    for (const input of report.missingAutocomplete.slice(0, MAX_REPORTED)) {
+      findings.push({
+        sc: SC.inputPurpose,
+        severity: "review",
+        selector: input.selector,
+        message: tr(`利用者自身の情報 (${input.hint}) を入力する欄に見えますが、autocomplete 属性がありません。該当する場合は、対応する値を指定してください。`, `Looks like a field for the user's own information (${input.hint}) but has no autocomplete attribute. If so, set the matching value.`),
+        details: { hint: input.hint, text: input.text },
+      });
+    }
+
+    // 動きの検査では、利用者が動きを減らす設定にしていない状態を基準にする。
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.waitForTimeout(100);
+    const moving = await page.evaluate(collectMoving);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.waitForTimeout(100);
+    const stillMoving = new Set((await page.evaluate(collectMoving)).map((m) => m.selector));
+    for (const el of moving.slice(0, MAX_REPORTED)) {
+      const respects = !stillMoving.has(el.selector);
+      findings.push({
+        sc: SC.pauseStopHide,
+        severity: "review",
+        selector: el.selector,
+        message: tr(`${el.durationMs === null ? "終わりのない" : `${Math.round(el.durationMs / 1000)} 秒続く`}アニメーションが自動で動いています。ほかの内容と並んで表示される場合は、一時停止、停止、非表示のいずれかの手段が必要です。`, `${el.durationMs === null ? "An endless animation" : `An animation lasting ${Math.round(el.durationMs / 1000)} seconds`} starts automatically. If it is shown alongside other content, a way to pause, stop or hide it is required.`),
+        details: { durationMs: el.durationMs, stopsWithReducedMotion: respects, text: el.text },
+      });
+    }
+
+    return {
+      check: "presentation",
+      url: options.url,
+      viewport,
+      summary: summarize(findings),
+      findings,
+      checked: ["1.4.8", "2.2.2", "2.5.5", ...(report.hasMedia ? ["1.4.2"] : []), ...(report.hasFormControls ? ["1.3.5"] : [])],
+      // 音声や映像を埋め込む要素、入力欄がなければ、それぞれに関する達成基準は該当しないと推定する。
+      inapplicable: [
+        ...(report.hasMedia ? [] : ["1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5", "1.2.6", "1.2.7", "1.2.8", "1.2.9", "1.4.2", "1.4.7"]),
+        ...(report.hasFormControls ? [] : ["1.3.5", "3.3.1", "3.3.2", "3.3.3", "3.3.4", "3.3.5", "3.3.6"]),
+      ],
+      data: { hasMedia: report.hasMedia, hasFormControls: report.hasFormControls },
+      ...(notes.length > 0 ? { notes } : {}),
+    };
+  });
+}
+
+/** ブラウザ側で実行する。外側の変数は参照できない。 */
+function collectStatic(minTarget: number): StaticReport {
+  const kikori = window.__kikori;
+  const INTERACTIVE =
+    'a[href], button, input:not([type="hidden"]), select, textarea, summary, [role="button"], [role="link"], [role="checkbox"], [role="radio"], [role="switch"], [role="tab"], [role="menuitem"], [tabindex]:not([tabindex="-1"])';
+
+  const hasSiblingText = (el: Element): boolean => {
+    const parent = el.parentElement;
+    if (!parent) return false;
+    for (const node of parent.childNodes) {
+      if (node.nodeType === Node.TEXT_NODE && (node.textContent ?? "").trim() !== "") return true;
+    }
+    return false;
+  };
+
+  const smallTargets: SmallTarget[] = [];
+  for (const el of document.querySelectorAll(INTERACTIVE)) {
+    if ((el as HTMLInputElement).disabled || el.closest("[inert], [aria-hidden='true']")) continue;
+    let rect = el.getBoundingClientRect();
+    // ラベルと結び付いた入力欄は、ラベルも押せる範囲に含まれる。
+    const label = (el as HTMLInputElement).labels?.[0];
+    if (label) {
+      const l = label.getBoundingClientRect();
+      const left = Math.min(rect.left, l.left);
+      const top = Math.min(rect.top, l.top);
+      rect = new DOMRect(left, top, Math.max(rect.right, l.right) - left, Math.max(rect.bottom, l.bottom) - top);
+    } else if (!kikori.isVisible(el)) {
+      continue;
+    }
+    if (rect.width <= 0 || rect.height <= 0) continue;
+    if (rect.width >= minTarget && rect.height >= minTarget) continue;
+    // 文章の中に置かれたリンクは、達成基準の例外にあたる。
+    if (getComputedStyle(el).display === "inline" && hasSiblingText(el)) continue;
+    smallTargets.push({ ...kikori.describe(el), width: Math.round(rect.width), height: Math.round(rect.height) });
+  }
+  smallTargets.sort((a, b) => a.width * a.height - b.width * b.height);
+
+  const textBlocks: TextBlock[] = [];
+  for (const el of document.body.querySelectorAll("p, li, dd, blockquote")) {
+    if (!kikori.isVisible(el)) continue;
+    const text = ((el as HTMLElement).innerText ?? "").replace(/\s+/g, " ").trim();
+    if (text.length < 20) continue;
+    const style = getComputedStyle(el);
+    const fontSize = parseFloat(style.fontSize);
+    if (!fontSize) continue;
+    // line-height: normal は書体によるが、おおむね 1.2 倍前後になる。
+    const lineHeight = style.lineHeight === "normal" ? fontSize * 1.2 : parseFloat(style.lineHeight);
+    const rect = el.getBoundingClientRect();
+    const lines = Math.round(rect.height / lineHeight);
+    // 和文は全角 1 文字が 1em、欧文は 1 文字がおよそ 0.5em として見積もる。
+    const cjk = (text.match(/[぀-ヿ㐀-鿿＀-￯]/g) ?? []).length / text.length > 0.3;
+    const capacity = rect.width / (cjk ? fontSize : fontSize * 0.5);
+    textBlocks.push({
+      ...kikori.describe(el),
+      justified: style.textAlign === "justify",
+      // 1 行しかない文章では、行の高さも行の長さも読みやすさに影響しない。
+      lineHeightRatio: lines >= 2 ? lineHeight / fontSize : 1.5,
+      charsPerLine: lines >= 2 ? capacity : 0,
+      charLimit: cjk ? 40 : 80,
+    });
+  }
+
+  const autoplay = Array.from(document.querySelectorAll<HTMLMediaElement>("video[autoplay], audio[autoplay]"))
+    .filter((m) => !m.muted)
+    .map((m) => ({ ...kikori.describe(m), hasControls: m.controls }));
+
+  const hasMedia = document.querySelector("video, audio, iframe, object, embed") !== null;
+
+  const PURPOSES: [RegExp, string][] = [
+    [/e-?mail|メール/i, "email"],
+    [/tel|phone|電話/i, "tel"],
+    [/zip|postal|郵便/i, "postal-code"],
+    [/addr|住所/i, "street-address"],
+    [/birth|bday|生年月日|誕生/i, "bday"],
+    [/user-?name|login|ユーザー名/i, "username"],
+    [/passw|パスワード/i, "current-password / new-password"],
+    [/card|カード番号/i, "cc-number"],
+    [/name|氏名|名前/i, "name"],
+  ];
+  const fields = Array.from(document.querySelectorAll<HTMLInputElement>("input, select, textarea")).filter(
+    (el) => !["hidden", "submit", "button", "reset", "image", "file", "checkbox", "radio", "range", "color", "search"].includes(el.type),
+  );
+  const missingAutocomplete: (ElementInfo & { hint: string })[] = [];
+  for (const field of fields) {
+    if (field.getAttribute("autocomplete")?.trim() || field.disabled) continue;
+    const label = field.labels?.[0]?.innerText ?? field.getAttribute("aria-label") ?? "";
+    const clue = [field.type, field.name, field.id, field.getAttribute("placeholder") ?? "", label].join(" ");
+    const purpose = PURPOSES.find(([pattern]) => pattern.test(clue));
+    if (purpose) missingAutocomplete.push({ ...kikori.describe(field), text: label.trim().slice(0, 80), hint: purpose[1] });
+  }
+  const hasFormControls = document.querySelector("input:not([type='hidden']), select, textarea, [contenteditable]") !== null;
+
+  return { smallTargets, textBlocks, autoplay, hasMedia, hasFormControls, missingAutocomplete };
+}
+
+/** ブラウザ側で実行する。5 秒を超えて動き続ける要素を返す。 */
+function collectMoving(): MovingElement[] {
+  const kikori = window.__kikori;
+  const found = new Map<Element, number | null>();
+  for (const animation of document.getAnimations()) {
+    if (animation.playState !== "running") continue;
+    const effect = animation.effect;
+    if (!(effect instanceof KeyframeEffect) || !effect.target) continue;
+    const timing = effect.getComputedTiming();
+    const end = typeof timing.endTime === "number" ? timing.endTime : Number(timing.endTime);
+    const endless = timing.iterations === Infinity || !Number.isFinite(end);
+    if (!endless && end <= 5000) continue;
+    if (!kikori.isVisible(effect.target)) continue;
+    found.set(effect.target, endless ? null : end);
+  }
+  return Array.from(found, ([el, durationMs]) => ({ ...kikori.describe(el), durationMs }));
+}

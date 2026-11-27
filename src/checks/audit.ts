@@ -1,0 +1,199 @@
+import { tr } from "../i18n.js";
+import { checkAxe } from "./axe.js";
+import { checkKeyboardFocus } from "./focus.js";
+import { checkInteraction } from "./interaction.js";
+import { checkPresentation } from "./presentation.js";
+import { checkReflow } from "./reflow.js";
+import { checkTextSpacing } from "./textSpacing.js";
+import { WCAG21, WCAG22_EXTRA, withinLevel, type Level, type SuccessCriterion } from "../criteria.js";
+import { ALWAYS_JUDGED } from "../evidence.js";
+import { summarize, type CheckResult } from "../types.js";
+
+export interface AuditOptions {
+  url: string;
+  /** 目標とする適合レベル。既定値は AA。 */
+  level?: Level;
+  /** 呼び出し側のモデルや人が下した判断。達成基準の一覧に反映する。 */
+  judgments?: Judgment[];
+  waitForSelector?: string;
+  waitMs?: number;
+}
+
+export interface Judgment {
+  /** 達成基準の番号 */
+  id: string;
+  verdict: "pass" | "fail" | "inapplicable";
+  /** 判断の根拠 */
+  reason: string;
+}
+
+/**
+ * 達成基準ごとの状態。
+ * - fail: 自動検査で不適合が見つかった
+ * - review: 自動では判定できず、人の確認が必要な箇所が見つかった
+ * - no_issue_found: 自動検査の範囲では問題が見つからなかった (適合の保証ではない)
+ * - needs_judgment: 判断材料は集められるが、内容を見て判断する必要がある (collect_evidence を使う)
+ * - judged_pass: 呼び出し側の判断で、満たしているとされた
+ * - inapplicable: 対象になる要素がページになく、該当しないと推定した (または、そう判断された)
+ * - manual: 判断材料を集める手段もなく、人の確認が必要
+ */
+export type CriterionStatus = "fail" | "review" | "needs_judgment" | "no_issue_found" | "judged_pass" | "inapplicable" | "manual";
+
+export interface CriterionRow {
+  id: string;
+  name: string;
+  level: Level;
+  status: CriterionStatus;
+  fail: number;
+  review: number;
+  /** この達成基準を調べた検査の名前 */
+  checkedBy: string[];
+  note?: string;
+  judgment?: Judgment;
+}
+
+/**
+ * WCAG 2.1 の正誤表は、HTML で書かれたコンテンツについて 4.1.1 を常に満たすものとして扱うと定めている。
+ * ブラウザが構文の誤りを一定の規則で解釈するようになり、支援技術が直接マークアップを解析しなくなったため。
+ */
+const ALWAYS_SATISFIED: Record<string, () => string> = {
+  "4.1.1": () => tr("WCAG 2.1 の正誤表により、HTML のコンテンツでは常に満たすものとして扱います。", "Treated as always satisfied for HTML content, per the WCAG 2.1 errata."),
+};
+
+export interface CriteriaSummary {
+  criteria: CriterionRow[];
+  beyondTarget: CriterionRow[];
+  counts: Record<CriterionStatus, number>;
+  verdict: Verdict;
+  explanation: string;
+}
+
+/**
+ * - nonconformant: 不適合が見つかった
+ * - undetermined: 不適合は見つからないが、確認が残っている
+ * - no_failure_found: 自動検査と呼び出し側の判断を合わせて、すべての達成基準で不適合が見つからなかった
+ */
+export type Verdict = "nonconformant" | "undetermined" | "no_failure_found";
+
+/** 目標のレベルを超える達成基準の指摘を取り除く。 */
+export function limitToLevel(result: CheckResult, level: Level): CheckResult {
+  const findings = result.findings.filter((f) => withinLevel(f.sc, level));
+  return { ...result, findings, summary: summarize(findings) };
+}
+
+/** 検査結果の集まりを、達成基準ごとの状態にまとめる。複数ページの結果を混ぜて渡してもよい。 */
+export function summarizeCriteria(results: CheckResult[], level: Level, judgments: Judgment[] = []): CriteriaSummary {
+  const judged = new Map(judgments.map((j) => [j.id, j]));
+  const toRow = (sc: SuccessCriterion): CriterionRow => {
+    let fail = 0;
+    let review = 0;
+    const checkedBy = new Set<string>();
+    let inapplicable = false;
+    for (const result of results) {
+      const own = result.findings.filter((f) => f.sc.id === sc.id);
+      fail += own.filter((f) => f.severity === "fail").length;
+      review += own.filter((f) => f.severity === "review").length;
+      if (result.checked.includes(sc.id) || own.length > 0) checkedBy.add(result.check);
+      if (result.inapplicable?.includes(sc.id)) inapplicable = true;
+    }
+    const errata = ALWAYS_SATISFIED[sc.id]?.();
+    if (errata) checkedBy.add("wcag21_errata");
+    const wantsJudgment = !errata && (ALWAYS_JUDGED.includes(sc.id) || results.some((r) => r.needsJudgment?.includes(sc.id)));
+    const untouched = checkedBy.size === 0;
+
+    let status: CriterionStatus =
+      fail > 0
+        ? "fail"
+        : review > 0
+          ? "review"
+          : inapplicable && (untouched || !wantsJudgment)
+            ? untouched ? "inapplicable" : "no_issue_found"
+            : wantsJudgment
+              ? "needs_judgment"
+              : untouched
+                ? "manual"
+                : "no_issue_found";
+
+    let note = errata;
+    const judgment = judged.get(sc.id);
+    if (judgment) {
+      if (fail > 0 && judgment.verdict !== "fail") {
+        note = tr("自動検査で不適合が見つかっているため、渡された判断は反映していません。", "An automated check found a failure, so the supplied judgment was not applied.");
+      } else {
+        status = judgment.verdict === "fail" ? "fail" : judgment.verdict === "pass" ? "judged_pass" : "inapplicable";
+      }
+    }
+    return {
+      id: sc.id,
+      name: sc.name,
+      level: sc.level,
+      status,
+      fail,
+      review,
+      checkedBy: [...checkedBy],
+      ...(note ? { note } : {}),
+      ...(judgment ? { judgment } : {}),
+    };
+  };
+
+  const criteria = WCAG21.filter((sc) => withinLevel(sc, level)).map(toRow);
+  const beyondTarget = WCAG22_EXTRA.filter((sc) => withinLevel(sc, level)).map(toRow);
+  const counts: Record<CriterionStatus, number> = { fail: 0, review: 0, needs_judgment: 0, no_issue_found: 0, judged_pass: 0, inapplicable: 0, manual: 0 };
+  for (const row of criteria) counts[row.status]++;
+
+  const open = counts.review + counts.needs_judgment + counts.manual;
+  const verdict: Verdict = counts.fail > 0 ? "nonconformant" : open > 0 ? "undetermined" : "no_failure_found";
+  const explanation =
+    verdict === "nonconformant"
+      ? tr(`${counts.fail} 件の達成基準で不適合が見つかりました。WCAG 2.1 レベル ${level} には適合していません。`, `Failures were found in ${counts.fail} success criteria. The page does not conform to WCAG 2.1 Level ${level}.`)
+      : verdict === "undetermined"
+        ? tr(`自動検査では不適合が見つかりませんでした。ただし ${open} 件の達成基準は確認が残っています (要確認 ${counts.review} 件、判断待ち ${counts.needs_judgment} 件、手動 ${counts.manual} 件)。判断待ちの達成基準は、collect_evidence で材料を集めて判断し、judgments に渡して再実行してください。`, `No failures were found by the automated checks, but ${open} success criteria are still open (needs review ${counts.review}, awaiting judgment ${counts.needs_judgment}, manual ${counts.manual}). For those awaiting judgment, gather material with collect_evidence, decide, and run again with the decisions in judgments.`)
+        : tr(`自動検査と渡された判断を合わせて、WCAG 2.1 レベル ${level} のすべての達成基準で不適合が見つかりませんでした。自動検査は調べられる範囲に限りがあり、判断はモデルによるものを含みます。適合を表明する前に、支援技術を使った人による確認を行ってください。`, `Combining the automated checks and the supplied judgments, no failures were found in any WCAG 2.1 Level ${level} success criterion. Automated checks cover a limited range and some judgments were made by a model. Have a person verify with assistive technology before claiming conformance.`);
+  return { criteria, beyondTarget, counts, verdict, explanation };
+}
+
+export interface AuditResult {
+  url: string;
+  target: string;
+  conformance: {
+    /** nonconformant: 不適合が見つかった / undetermined: 不適合は見つからないが、人の確認が残っている */
+    verdict: Verdict;
+    explanation: string;
+    counts: Record<CriterionStatus, number>;
+  };
+  summary: { fail: number; review: number };
+  criteria: CriterionRow[];
+  /** WCAG 2.2 で追加された達成基準。目標とする WCAG 2.1 の判定には含めない。 */
+  beyondTarget: CriterionRow[];
+  results: CheckResult[];
+}
+
+/** すべての検査を順に実行し、達成基準ごとの状態にまとめる。 */
+export async function auditPage(options: AuditOptions): Promise<AuditResult> {
+  const level = options.level ?? "AA";
+  const raw = [
+    await checkAxe({ ...options, level }),
+    await checkReflow(options),
+    await checkTextSpacing(options),
+    await checkKeyboardFocus(options),
+    await checkPresentation(options),
+    await checkInteraction(options),
+  ];
+
+  // 目標のレベルを超える達成基準の指摘は、判定にも一覧にも含めない。
+  const results = raw.map((result) => limitToLevel(result, level));
+  const { criteria, beyondTarget, counts, verdict, explanation } = summarizeCriteria(results, level, options.judgments);
+
+  return {
+    url: options.url,
+    target: tr(`WCAG 2.1 レベル ${level}`, `WCAG 2.1 Level ${level}`),
+    conformance: { verdict, explanation, counts },
+    summary: {
+      fail: results.reduce((n, r) => n + r.summary.fail, 0),
+      review: results.reduce((n, r) => n + r.summary.review, 0),
+    },
+    criteria,
+    beyondTarget,
+    results,
+  };
+}
