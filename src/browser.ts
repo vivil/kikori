@@ -151,6 +151,8 @@ export async function withPage<T>(options: PageOptions, run: (page: Page) => Pro
       // デスクトップで拡大したときの挙動を再現するため、モバイル扱いにはしない。
       isMobile: false,
       reducedMotion: "reduce",
+      // ログイン済みの状態を読み込む。Cookie は、ブラウザがその持ち主のホストにだけ送る。
+      ...(getSettings().storageState ? { storageState: getSettings().storageState as string } : {}),
     });
     const SAFE_SCHEMES = new Set(["about:", "data:", "blob:", "chrome-error:"]);
     /** iframe が読み込んでよい URL か。data: や about:blank は親のページ自身の内容なので止めない。 */

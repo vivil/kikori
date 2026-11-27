@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 /**
  * サーバーの起動時に決める設定。検査対象の範囲は人が決めるもので、
  * ツールの引数からは変えられないようにしている。
@@ -21,6 +23,11 @@ export interface Settings {
   allowFile: boolean;
   /** ブラウザ本体がないとき、最初の検査の前に自動で取得するか */
   autoInstall: boolean;
+  /**
+   * ログイン済みの状態を保存したファイルのパス (Playwright の storageState 形式)。
+   * 指定すると、その Cookie とローカルストレージを持った状態でページを開く。
+   */
+  storageState: string | null;
 }
 
 /** 既定で開いてよいホスト。開発サーバーの検査は、設定なしでできるようにする。 */
@@ -56,6 +63,7 @@ function fromEnvironment(env: NodeJS.ProcessEnv): Settings {
     fileRoot: env.KIKORI_FILE_ROOT ?? null,
     allowFile: env.KIKORI_NO_FILE !== "1",
     autoInstall: env.KIKORI_NO_AUTO_INSTALL !== "1",
+    storageState: env.KIKORI_STORAGE_STATE || null,
   };
 }
 
@@ -86,12 +94,14 @@ const USAGE_JA = `使い方: kikori [オプション]
   --file-root <パス>      file: の URL で開いてよいディレクトリ。
                           既定では、サーバーを起動したディレクトリ。
   --no-file               file: の URL を受け付けない。
+  --storage-state <パス>  ログイン済みの状態を保存したファイル (Playwright の storageState 形式)。
+                          指定すると、その Cookie とローカルストレージを持った状態でページを開く。
   --no-auto-install       ブラウザがないとき、自動では取得しない。
                           指定しないときは、最初の検査の前にダウンロードする (ディスク上で約 300 MB)。
   --help                  この説明を表示する。
 
 環境変数 KIKORI_LANG、KIKORI_ALLOWED_HOSTS、KIKORI_ALLOWED_FRAME_HOSTS、KIKORI_FILE_ROOT、
-KIKORI_NO_FILE=1、KIKORI_NO_AUTO_INSTALL=1 でも指定できる。オプションと環境変数の両方があるときは、オプションを使う。`;
+KIKORI_STORAGE_STATE、KIKORI_NO_FILE=1、KIKORI_NO_AUTO_INSTALL=1 でも指定できる。オプションと環境変数の両方があるときは、オプションを使う。`;
 
 const USAGE_EN = `Usage: kikori [options]
        kikori install [--with-deps]   Install the browser used for the checks ahead of time.
@@ -110,12 +120,15 @@ const USAGE_EN = `Usage: kikori [options]
   --file-root <path>      Directory that file: URLs may be opened from.
                           Defaults to the directory the server was started in.
   --no-file               Refuse file: URLs.
+  --storage-state <path>  File holding a logged-in state (Playwright storageState format).
+                          Pages are opened with its cookies and local storage.
   --no-auto-install       Do not download the browser automatically when it is missing.
                           By default it is downloaded before the first check (about 300 MB on disk).
   --help                  Show this help.
 
 The same settings can be given with the environment variables KIKORI_LANG, KIKORI_ALLOWED_HOSTS,
-KIKORI_ALLOWED_FRAME_HOSTS, KIKORI_FILE_ROOT, KIKORI_NO_FILE=1 and KIKORI_NO_AUTO_INSTALL=1.
+KIKORI_ALLOWED_FRAME_HOSTS, KIKORI_FILE_ROOT, KIKORI_STORAGE_STATE, KIKORI_NO_FILE=1 and
+KIKORI_NO_AUTO_INSTALL=1.
 Options take precedence.`;
 
 export function usage(language: "ja" | "en"): string {
@@ -163,6 +176,9 @@ export function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env):
       case "--no-auto-install":
         settings.autoInstall = false;
         break;
+      case "--storage-state":
+        settings.storageState = value();
+        break;
       case "--help":
       case "-h":
         help = true;
@@ -192,6 +208,21 @@ export function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env):
           settings.lang,
           `ホストの指定として解釈できません: ${pattern} (例: self、*、player.example.com、*.example.com)`,
           `Not a valid host: ${pattern} (examples: self, *, player.example.com, *.example.com)`,
+        ),
+      );
+    }
+  }
+  if (settings.storageState !== null) {
+    // 起動時に確かめておく。検査のたびに失敗するより、原因が分かりやすい。
+    try {
+      const state = JSON.parse(readFileSync(settings.storageState, "utf8")) as { cookies?: unknown; origins?: unknown };
+      if (typeof state !== "object" || state === null || (!Array.isArray(state.cookies) && !Array.isArray(state.origins))) throw new Error("no cookies or origins");
+    } catch (error) {
+      throw new Error(
+        say(
+          settings.lang,
+          `--storage-state のファイルを読めません: ${settings.storageState} (${error instanceof Error ? error.message : String(error)})。Playwright の storageState 形式の JSON を指定してください。`,
+          `Cannot read the --storage-state file: ${settings.storageState} (${error instanceof Error ? error.message : String(error)}). Give a JSON file in Playwright's storageState format.`,
         ),
       );
     }

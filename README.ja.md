@@ -159,6 +159,7 @@ http://localhost:3000/ を audit_page でレベル AA まで検査して、fail 
 | `--allow-frame-host <ホスト>` | `KIKORI_ALLOWED_FRAME_HOSTS` | ページの中の iframe が読み込んでよいホスト。指定しないときは、iframe の読み込みをすべて止めます |
 | `--file-root <パス>` | `KIKORI_FILE_ROOT` | `file` の URL で開いてよいディレクトリ。既定では、サーバーを起動したディレクトリです |
 | `--no-file` | `KIKORI_NO_FILE=1` | `file` の URL を受け付けません |
+| `--storage-state <パス>` | `KIKORI_STORAGE_STATE` | ログイン済みの状態を保存したファイル。その Cookie とローカルストレージを持った状態でページを開きます |
 | `--no-auto-install` | `KIKORI_NO_AUTO_INSTALL=1` | ブラウザがないとき、自動ではダウンロードしません |
 
 何も指定しなければ、自分のコンピューターで動くサーバー (`localhost`、`*.localhost`、`127.0.0.1`、`[::1]`) だけを検査できます。開発中のサイトを検査するなら、設定は要りません。
@@ -211,6 +212,30 @@ claude mcp add kikori -- npx -y kikori --allow-host localhost:3000 --allow-frame
 `--allow-frame-host` は `--allow-host` とは別の一覧です。動画の埋め込み先を iframe として許可しても、そのホストを直接検査できるようにはなりません。
 
 `file` の URL で開けるのは、許可したディレクトリの中にある `.html`、`.htm`、`.xhtml` のファイルだけです。
+
+### ログインが必要なページ
+
+ログインが必要なページを検査するには、ログイン済みの状態をファイルに保存し、`--storage-state` で渡します。ファイルは Playwright の storageState 形式で、Cookie とローカルストレージが入ります。
+
+作り方の 1 つは、Playwright のコード生成ツールです。ブラウザが開くので、そこでログインしてからウィンドウを閉じます。
+
+```sh
+npx playwright codegen --save-storage=auth.json https://app.example.com/login
+```
+
+そのファイルとホストを指定して、kikori を起動します。
+
+```sh
+claude mcp add kikori -- npx -y kikori --allow-host app.example.com --storage-state /path/to/auth.json
+```
+
+次の点に注意してください。
+
+- ファイルにはセッションの Cookie が入ります。パスワードと同じように扱い、バージョン管理に含めないでください。
+- 検査用のアカウントを使ってください。結果には、そのアカウントで見える文章と画面の画像が含まれ、モデルに渡されます。
+- ブラウザは、それぞれの Cookie を持ち主のホストにだけ送ります。`--allow-host` の制限も、これまでどおり働きます。
+- `check_interaction` は、ページを移動する要求と GET 以外の要求を止めます。ただし、GET で状態を変える作りのサイトでは影響が出ることがあります。
+- kikori はファイルを読むだけで、更新しません。セッションが切れると、ページがまたログイン画面へ移動するようになります。そのときは、ファイルを作り直してください。
 
 ## 入力
 
@@ -267,7 +292,7 @@ claude mcp add kikori -- npx -y kikori --allow-host localhost:3000 --allow-frame
 - iframe の読み込みは、既定では止めます。`--allow-frame-host` で許可した場合も、iframe の中の要素は axe とフォーカスの検査の対象外です。
 - 行の長さは、和文を 1 文字 1em、欧文を 1 文字 0.5em として見積もった概算です。
 - `audit_page` は 1 ページ単位です。複数のページを比べる達成基準 (3.2.3、3.2.4 など) は `manual` になるので、`audit_site` を使ってください。
-- `audit_site` がたどるリンクは、起点のページにあるものだけです。ログインが必要なページや、操作のあとに現れる画面は検査できません。
+- `audit_site` がたどるリンクは、起点のページにあるものだけです。操作のあとに現れる画面は検査できません。ログインが必要なページには、`--storage-state` を使います。
 - 4.1.1 は、WCAG 2.1 の正誤表に従い、HTML のコンテンツでは常に満たすものとして扱います。
 - メディアや入力欄がページにないとき、関連する達成基準は「該当しない」と推定します。あとから読み込まれる要素は見落とすことがあります。
 - `check_interaction` は、ページを移動する要求と GET 以外の要求を止めたうえで操作します。サーバー側のデータは変えませんが、GET で状態を変える作りのサイトでは影響が出ることがあります。
