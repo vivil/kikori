@@ -72,7 +72,7 @@ The audits target WCAG 2.2 by default. Pass `wcag: "2.1"` to audit against WCAG 
 Whether a text alternative matches the image, or whether a heading describes what follows, cannot be decided mechanically. The calling model judges these criteria as follows.
 
 1. Run `audit_page`. Criteria that need a judgment come back as `needs_judgment`.
-2. Run `collect_evidence`. Each criterion comes with a question (`question`), the failure condition (`failWhen`) and the material (`evidence`), plus a full-page screenshot.
+2. Run `collect_evidence`. Each criterion comes with a question (`question`), the failure condition (`failWhen`), when to answer `unsure` (`unsureWhen`) and the material (`evidence`), plus a full-page screenshot.
 3. Use `capture_screenshot` to zoom in on an element when detail is needed.
 4. Run `audit_page` again with the decisions in `judgments`.
 
@@ -81,12 +81,18 @@ Whether a text alternative matches the image, or whether a heading describes wha
   "url": "http://localhost:3000/",
   "judgments": [
     { "id": "2.4.4", "verdict": "pass", "reason": "The link text alone identifies each destination" },
-    { "id": "1.1.1", "verdict": "fail", "reason": "The text alternative of #hero is a file name" }
+    { "id": "1.1.1", "verdict": "fail", "reason": "The text alternative is a file name", "evidence": "#hero, alt=\"IMG_0042.jpg\"" },
+    { "id": "2.4.9", "verdict": "unsure", "reason": "Two \"Details\" links go to different URLs and the destinations could not be read" }
   ]
 }
 ```
 
-`verdict` is `pass`, `fail` or `inapplicable`. A criterion that failed an automated check stays failed even if `pass` is supplied.
+`verdict` is `pass`, `fail`, `inapplicable` or `unsure`. A criterion that failed an automated check stays failed even if `pass` is supplied.
+
+kikori keeps a model's judgment from turning into a failure too easily:
+
+- A `fail` must name what it relies on in `evidence`: a selector or text from the page. A `fail` without it becomes `review`.
+- `unsure` says that the material is not enough to decide. The criterion becomes `review` and is handed to a person.
 
 `no_failure_found` is not proof of conformance. Automated checks cover a limited range and some judgments are made by a model. Have a person verify with assistive technology before claiming conformance.
 

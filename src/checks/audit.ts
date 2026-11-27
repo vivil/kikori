@@ -24,9 +24,12 @@ export interface AuditOptions {
 export interface Judgment {
   /** 達成基準の番号 */
   id: string;
-  verdict: "pass" | "fail" | "inapplicable";
+  /** unsure は、材料だけでは決められなかったことを表す。 */
+  verdict: "pass" | "fail" | "inapplicable" | "unsure";
   /** 判断の根拠 */
   reason: string;
+  /** fail の根拠にした箇所のセレクターか文言 */
+  evidence?: string;
 }
 
 /**
@@ -123,6 +126,12 @@ export function summarizeCriteria(results: CheckResult[], level: Level, judgment
     if (judgment) {
       if (fail > 0 && judgment.verdict !== "fail") {
         note = tr("自動検査で不適合が見つかっているため、渡された判断は反映していません。", "An automated check found a failure, so the supplied judgment was not applied.");
+      } else if (judgment.verdict === "unsure") {
+        if (fail === 0) status = "review";
+        note = tr("モデルは、材料だけでは判断できないと答えました。人が確認してください。", "The model answered that the material was not enough to decide. A person needs to check.");
+      } else if (judgment.verdict === "fail" && !judgment.evidence?.trim()) {
+        if (fail === 0) status = "review";
+        note = tr("不適合という判断に、根拠の箇所が示されていません。要確認として扱っています。", "The failing judgment does not point to the evidence it relies on, so it is treated as a review item.");
       } else {
         status = judgment.verdict === "fail" ? "fail" : judgment.verdict === "pass" ? "judged_pass" : "inapplicable";
       }

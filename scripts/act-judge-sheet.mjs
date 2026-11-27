@@ -6,7 +6,8 @@
 // a case number. The expected outcomes are written to a separate key file and are not printed. Page
 // titles such as "Failed Example 1" give the answer away and are replaced. With --sheet it also
 // writes one image that shows a screenshot of every case.
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import path from "node:path";
 
@@ -23,8 +24,15 @@ const { chromium } = await import("playwright");
 
 const TYPES = { ".html": "text/html; charset=utf-8", ".png": "image/png", ".jpg": "image/jpeg", ".gif": "image/gif", ".svg": "image/svg+xml", ".css": "text/css", ".js": "text/javascript", ".mp4": "video/mp4", ".mp3": "audio/mpeg", ".webm": "video/webm" };
 const server = createServer((req, res) => {
-  const file = path.join(cache, decodeURIComponent(new URL(req.url, "http://localhost").pathname));
-  if (!file.startsWith(cache + path.sep) || !existsSync(file)) return res.writeHead(404).end();
+  const urlPath = decodeURIComponent(new URL(req.url, "http://localhost").pathname);
+  const file = path.join(cache, urlPath);
+  if (!file.startsWith(cache + path.sep)) return res.writeHead(404).end();
+  // Pages that the test cases link to are not part of the cache yet. Fetch them from www.w3.org on first use.
+  if (!existsSync(file) && urlPath.startsWith("/WAI/content-assets/wcag-act-rules/") && !urlPath.endsWith("/")) {
+    mkdirSync(path.dirname(file), { recursive: true });
+    spawnSync("curl", ["-sS", "-f", "--retry", "2", "-o", file, `https://www.w3.org${urlPath}`]);
+  }
+  if (!existsSync(file) || statSync(file).isDirectory()) return res.writeHead(404).end();
   let body = readFileSync(file);
   if (file.endsWith(".html")) {
     body = Buffer.from(body.toString("utf8").replace(/<title>\s*(Passed|Failed|Inapplicable) Example[^<]*<\/title>/i, "<title>Example</title>"));
@@ -48,7 +56,7 @@ for (const [i, testcase] of cases.entries()) {
   const url = base + new URL(testcase.url).pathname;
   const collected = await collectEvidence({ url, criteria: [criterion], screenshot: false });
   const item = collected.items[0];
-  if (number === 1) console.log(`QUESTION: ${item.question}\nFAIL WHEN: ${item.failWhen}\n`);
+  if (number === 1) console.log(`INSTRUCTIONS: ${collected.instructions}\n\nQUESTION: ${item.question}\nFAIL WHEN: ${item.failWhen}\nUNSURE WHEN: ${item.unsureWhen ?? "-"}\n`);
   console.log(`Case ${number}: ${JSON.stringify(item.evidence)}`);
   evidence.push({ case: number, evidence: item.evidence });
   if (args.includes("--sheet")) shots.push((await captureScreenshot({ url, width: 480, height: 300 })).data);

@@ -5,6 +5,7 @@ import type { AddressInfo } from "node:net";
 import { after, before, test } from "node:test";
 import { checkKeyboardFocus } from "../src/checks/focus.js";
 import { checkPresentation } from "../src/checks/presentation.js";
+import { collectEvidence } from "../src/evidence.js";
 import { auditSite, comparePages, type PageSnapshot, type SiteResult } from "../src/checks/site.js";
 
 const fixtures = new URL("../../test/fixtures/", import.meta.url);
@@ -115,4 +116,22 @@ test("サイト: 同じ入力欄が複数のページにあると、再入力の
 
   const none = comparePages([page("https://shop.test/a", []), page("https://shop.test/b", [])]);
   assert.ok(none.inapplicable?.includes("3.3.7"));
+});
+
+test("判断材料: 同じ文言のリンクは、行き先の内容が同じかどうかを添える", async () => {
+  const evidence = await collectEvidence({ url: `${origin}/links/index.html`, criteria: ["2.4.9", "3.1.1"], screenshot: false });
+  const links = evidence.items[0]!.evidence.links as { selector: string; destination?: { title: string; sameContentAsOthers?: boolean } }[];
+  const destination = (selector: string) => links.find((link) => link.selector === selector)?.destination;
+  assert.equal(destination("#sales")?.title, "営業へのお問い合わせ");
+  assert.equal(destination("#sales")?.sameContentAsOthers, false);
+  assert.equal(destination("#careers")?.sameContentAsOthers, false);
+  assert.equal(destination("#about")?.sameContentAsOthers, true);
+  assert.equal(destination("#about-copy")?.sameContentAsOthers, true);
+  assert.match(evidence.items[0]!.unsureWhen ?? "", /destination/);
+
+  // 別の lang 属性が付いた段落は、ページの言語の判断材料に含めない。
+  const language = evidence.items[1]!.evidence as { textInPageLanguage: string; partsWithOwnLang: string[] };
+  assert.doesNotMatch(language.textInPageLanguage, /English/);
+  assert.match(language.textInPageLanguage, /お問い合わせ/);
+  assert.deepEqual(language.partsWithOwnLang, ["en"]);
 });

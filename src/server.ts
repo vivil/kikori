@@ -77,9 +77,13 @@ export function createServer(): McpServer {
       z.object({
         id: z.string().describe(tr("達成基準の番号 (例: 2.4.4)", "Success criterion number, e.g. 2.4.4")),
         verdict: z
-          .enum(["pass", "fail", "inapplicable"])
-          .describe(tr("pass: 満たしている / fail: 不適合 / inapplicable: 該当する内容がない", "pass: satisfied / fail: not satisfied / inapplicable: no relevant content")),
+          .enum(["pass", "fail", "inapplicable", "unsure"])
+          .describe(tr("pass: 満たしている / fail: 不適合 / inapplicable: 該当する内容がない / unsure: 材料だけでは決められない", "pass: satisfied / fail: not satisfied / inapplicable: no relevant content / unsure: the material is not enough to decide")),
         reason: z.string().describe(tr("判断の根拠。何を見てそう判断したかを書く。", "Grounds for the judgment: what you looked at and why you decided so.")),
+        evidence: z
+          .string()
+          .optional()
+          .describe(tr("fail のときは必須。根拠にした箇所のセレクターか文言。省くと要確認として扱われる。", "Required for fail: the selector or the text the judgment relies on. Without it the judgment is treated as a review item.")),
       }),
     )
     .optional()
