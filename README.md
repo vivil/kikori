@@ -136,15 +136,17 @@ Results include screenshots and text from the page. So that a misled model canno
 | Option | Environment variable | Description |
 |---|---|---|
 | `--lang <ja\|en>` | `KIKORI_LANG` | Language for results and errors. Defaults to `ja` when the system locale is Japanese, otherwise `en` |
-| `--allow-host <host>` | `KIKORI_ALLOWED_HOSTS` | Host that may be opened. Repeatable, or comma-separated. When given, hosts outside the list are refused |
+| `--allow-host <host>` | `KIKORI_ALLOWED_HOSTS` | Host that may be opened. Repeatable, or comma-separated. When omitted, only `localhost` and `127.0.0.1` may be opened. `*` allows every host |
 | `--allow-frame-host <host>` | `KIKORI_ALLOWED_FRAME_HOSTS` | Host that iframes in the page may load. When omitted, every iframe load is blocked |
 | `--file-root <path>` | `KIKORI_FILE_ROOT` | Directory that `file` URLs may be opened from. Defaults to the directory the server was started in |
 | `--no-file` | `KIKORI_NO_FILE=1` | Refuse `file` URLs |
 
-To audit only a dev server:
+With no options, only servers on your own machine (`localhost`, `*.localhost`, `127.0.0.1`, `[::1]`) can be audited. Auditing a site under development needs no configuration.
+
+To audit a public site, name its host. Giving `--allow-host` replaces the default list, so list `localhost` as well if you also audit a dev server.
 
 ```sh
-claude mcp add kikori -- node /path/to/kikori/dist/src/index.js --allow-host localhost:3000 --no-file
+claude mcp add kikori -- node /path/to/kikori/dist/src/index.js --allow-host localhost --allow-host example.com
 ```
 
 Hosts can be written in three ways.
@@ -157,9 +159,18 @@ The restriction applies in these situations.
 
 - When the URL passed to a tool is not on the list, an error is returned without opening the page.
 - When a link or script in the page tries to move to a host that is not on the list, the navigation is blocked.
+- When the page tries to load an image or script from a host that is not on the list, the load is blocked.
 - When a listed host redirects to another host, an error is returned instead of a result.
 
-Loading images, scripts and other subresources is not blocked. Without `--allow-host`, hosts are not restricted.
+Images, scripts, styles and connections (fetch and WebSocket) follow the same list. Nothing is loaded from a host that is not on it.
+
+When loads are blocked, the `notes` of the result give the destinations. A page that takes fonts or styles from a CDN is then audited looking different from what users see. Add the hosts named in `notes` to `--allow-host`.
+
+```sh
+claude mcp add kikori -- node /path/to/kikori/dist/src/index.js --allow-host localhost --allow-host fonts.googleapis.com --allow-host fonts.gstatic.com
+```
+
+To allow every host, pass `--allow-host '*'`.
 
 ### Iframes
 

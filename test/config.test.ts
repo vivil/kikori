@@ -4,18 +4,41 @@ import type { AddressInfo } from "node:net";
 import { after, before, test } from "node:test";
 import { assertAllowedUrl, withPage } from "../src/browser.js";
 import { checkReflow } from "../src/checks/reflow.js";
-import { configure, getSettings, isHostAllowed, parseArgs, type Settings } from "../src/config.js";
+import { configure, getSettings, isHostAllowed, LOOPBACK_HOSTS, parseArgs, type Settings } from "../src/config.js";
 
 const settings = (hosts: string[] | null, frames: string[] = []): Settings => ({ lang: "ja", allowedHosts: hosts, allowedFrameHosts: frames, fileRoot: null, allowFile: true });
 const original = getSettings();
 let server: Server;
 let port: number;
+const pixelHits: string[] = [];
 
 before(async () => {
   server = createServer((req, res) => {
     if (req.url === "/redirect") {
       // 許可していないホスト (localhost) へ転送する。
       res.writeHead(302, { location: `http://localhost:${port}/page` }).end();
+      return;
+    }
+    if (req.url === "/pixel") {
+      // どのホスト名あてに届いたかを記録する。
+      pixelHits.push(req.headers.host ?? "");
+      res.writeHead(200, { "content-type": "image/gif" });
+      res.end(Buffer.from("R0lGODlhAQABAAAAACwAAAAAAQABAAA=", "base64"));
+      return;
+    }
+    if (req.url === "/redirect-pixel") {
+      res.writeHead(302, { location: `http://localhost:${port}/pixel` }).end();
+      return;
+    }
+    if (req.url === "/with-redirected-image") {
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      res.end(`<!doctype html><html lang="ja"><title>転送される画像</title><body><h1>転送される画像</h1><img alt="転送" src="/redirect-pixel"></body></html>`);
+      return;
+    }
+    if (req.url === "/with-image") {
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      res.end(`<!doctype html><html lang="ja"><title>画像のあるページ</title><body><h1>画像のあるページ</h1>
+        <img alt="同じホスト" src="/pixel"><img alt="別のホスト" src="http://localhost:${port}/pixel"></body></html>`);
       return;
     }
     if (req.url === "/framed") {
@@ -58,7 +81,10 @@ test("起動時の引数: ホストの一覧、file: の範囲、無効化を読
     fileRoot: "/srv/site",
     allowFile: false,
   });
-  assert.deepEqual(parseArgs([], {}).settings, { lang: "en", allowedHosts: null, allowedFrameHosts: [], fileRoot: null, allowFile: true });
+  assert.deepEqual(parseArgs([], {}).settings, { lang: "en", allowedHosts: LOOPBACK_HOSTS, allowedFrameHosts: [], fileRoot: null, allowFile: true });
+  // * を指定したときだけ、すべてのホストを開く。
+  assert.equal(parseArgs(["--allow-host", "*"], {}).settings.allowedHosts, null);
+  assert.equal(parseArgs([], { KIKORI_ALLOWED_HOSTS: "*" }).settings.allowedHosts, null);
   assert.deepEqual(parseArgs(["--allow-frame-host", "*"], {}).settings.allowedFrameHosts, ["*"]);
   assert.equal(parseArgs(["--help"], {}).help, true);
 });
@@ -99,6 +125,21 @@ test("ホストの照合: ポート、ワイルドカード、IPv6 を扱う", (
   assert.equal(allowed("https://example.com.evil.test/", ["example.com"]), false);
   assert.equal(allowed("http://[::1]:8080/", ["[::1]:8080"]), true);
   assert.equal(allowed("http://169.254.169.254/", ["localhost"]), false);
+  // ポートを省いた wss: は 443、ws: は 80 として照合する。
+  assert.equal(allowed("wss://example.com/socket", ["example.com:443"]), true);
+  assert.equal(allowed("wss://example.com/socket", ["example.com:80"]), false);
+  assert.equal(allowed("ws://example.com/socket", ["example.com:80"]), true);
+});
+
+test("宛先の制限: 何も指定しなければ、自分のコンピューターのサーバーだけを開く", async () => {
+  configure(parseArgs([], { KIKORI_LANG: "ja" }).settings);
+  const ok = await checkReflow({ url: `http://127.0.0.1:${port}/page` });
+  assert.equal(ok.check, "reflow");
+  assert.equal(assertAllowedUrl("http://localhost:3000/").hostname, "localhost");
+  assert.equal(assertAllowedUrl("http://app.localhost:5173/").hostname, "app.localhost");
+  assert.throws(() => assertAllowedUrl("https://example.com/"), /開いてよいホストに含まれていません/);
+  assert.throws(() => assertAllowedUrl("http://192.168.0.1/"), /開いてよいホスト/);
+  assert.throws(() => assertAllowedUrl("http://localhost.example.com/"), /開いてよいホスト/);
 });
 
 test("宛先の制限: 許可したホストは検査でき、ほかのホストは開かない", async () => {
@@ -117,6 +158,27 @@ test("宛先の制限: 許可したホストから別のホストへ転送され
 test("宛先の制限: 読み込みのあとで別のホストへ転送されても、結果を返さない", async () => {
   configure(settings([`127.0.0.1:${port}`]));
   await assert.rejects(checkReflow({ url: `http://127.0.0.1:${port}/late`, waitMs: 400 }), /開いてよいホストに含まれていません/);
+});
+
+test("読み込み: 画像などの読み込みも、開いてよいホストの一覧に従う", async () => {
+  configure(settings([`127.0.0.1:${port}`]));
+  pixelHits.length = 0;
+  const blocked = await checkReflow({ url: `http://127.0.0.1:${port}/with-image` });
+  assert.deepEqual(pixelHits, [`127.0.0.1:${port}`]);
+  assert.match(blocked.notes?.join("\n") ?? "", new RegExp(`1 件の宛先 \\(localhost:${port}\\) からの読み込みを止めました`));
+
+  configure(settings([`127.0.0.1:${port}`, `localhost:${port}`]));
+  pixelHits.length = 0;
+  const allowed = await checkReflow({ url: `http://127.0.0.1:${port}/with-image` });
+  assert.deepEqual(pixelHits.sort(), [`127.0.0.1:${port}`, `localhost:${port}`]);
+  assert.equal(allowed.notes, undefined);
+});
+
+test("読み込み: 許可したホストが一覧にないホストへ転送したら、結果を返さない", async () => {
+  configure(settings([`127.0.0.1:${port}`]));
+  await assert.rejects(checkReflow({ url: `http://127.0.0.1:${port}/with-redirected-image` }), /へ転送されました/);
+  configure(settings([`127.0.0.1:${port}`, `localhost:${port}`]));
+  assert.equal((await checkReflow({ url: `http://127.0.0.1:${port}/with-redirected-image` })).check, "reflow");
 });
 
 /** それぞれの iframe の中身が読み込まれたかを調べる。 */

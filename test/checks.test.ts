@@ -88,6 +88,9 @@ test("file: の URL は、許可したディレクトリの中の HTML だけを
   assert.throws(() => assertAllowedUrl("file:///etc/passwd"), /の中だけ/);
   assert.throws(() => assertAllowedUrl(new URL("../../package.json", import.meta.url).href), /拡張子/);
   assert.throws(() => assertAllowedUrl(fixture("missing.html")), /見つかりません/);
+  // ホスト名つきの URL は、ファイルに触れる前に断る。
+  assert.throws(() => assertAllowedUrl("file://fileserver.example/share/page.html"), /ホスト名つき/);
+  assert.equal(assertAllowedUrl(fixture("good.html").replace("file:///", "file://localhost/")).protocol, "file:");
 });
 
 test("axe: 代替テキスト、コントラスト、ラベル、言語の不備を達成基準つきで報告する", async () => {

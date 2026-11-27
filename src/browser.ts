@@ -34,17 +34,34 @@ function resolveAllowedFile(url: URL): URL {
   if (!getSettings().allowFile) {
     throw new Error(tr("このサーバーは、file: の URL を受け付けない設定で起動されています。", "This server was started with file: URLs disabled."));
   }
+  // ホスト名つきの file: URL は、Windows ではネットワーク上の共有フォルダを指す。開こうとするだけで
+  // 認証情報が外へ送られることがあるので、ファイルに触れる前に断る。
+  if (url.hostname !== "" && url.hostname !== "localhost") {
+    throw new Error(tr("ホスト名つきの file: URL は開けません。", "file: URLs with a host name cannot be opened."));
+  }
+  const root = fileRoot();
+  const outside = (candidate: string): boolean => {
+    const relative = path.relative(root, candidate);
+    return relative.startsWith("..") || path.isAbsolute(relative);
+  };
+  const outsideError = (): Error =>
+    new Error(
+      tr(
+        `file: の URL は ${root} の中だけを開けます。別の場所を検査するには、起動時のオプション --file-root で指定してください。`,
+        `file: URLs may only be opened inside ${root}. To audit another location, start the server with --file-root.`,
+      ),
+    );
+  // まず文字列の上で範囲を確かめ、範囲の外のパスにはファイルシステムの問い合わせをしない。
+  const lexical = path.resolve(fileURLToPath(url));
+  if (lexical.startsWith("\\\\") || lexical.startsWith("//") || outside(lexical)) throw outsideError();
   let real: string;
   try {
-    real = realpathSync(fileURLToPath(url));
+    real = realpathSync(lexical);
   } catch {
     throw new Error(tr(`ファイルが見つかりません: ${url.pathname}`, `File not found: ${url.pathname}`));
   }
-  const root = fileRoot();
-  const relative = path.relative(root, real);
-  if (relative.startsWith("..") || path.isAbsolute(relative)) {
-    throw new Error(tr(`file: の URL は ${root} の中だけを開けます。別の場所を検査するには、起動時のオプション --file-root で指定してください。`, `file: URLs may only be opened inside ${root}. To audit another location, start the server with --file-root.`));
-  }
+  // リンクをたどった先も、範囲の中にあることを確かめる。
+  if (outside(real)) throw outsideError();
   if (!HTML_EXTENSIONS.has(path.extname(real).toLowerCase())) {
     throw new Error(tr("file: の URL で開けるのは、拡張子が .html、.htm、.xhtml のファイルだけです。", "Only .html, .htm and .xhtml files may be opened through file: URLs."));
   }
@@ -55,8 +72,28 @@ function resolveAllowedFile(url: URL): URL {
   return resolved;
 }
 
+/** file: の URL が、許可したディレクトリの中の実在するファイルを指しているか。拡張子は問わない。 */
+function isInsideFileRoot(url: URL): boolean {
+  if (!getSettings().allowFile || (url.hostname !== "" && url.hostname !== "localhost")) return false;
+  try {
+    const root = fileRoot();
+    const outside = (candidate: string): boolean => {
+      const relative = path.relative(root, candidate);
+      return relative.startsWith("..") || path.isAbsolute(relative);
+    };
+    const lexical = path.resolve(fileURLToPath(url));
+    return !outside(lexical) && !outside(realpathSync(lexical));
+  } catch {
+    return false;
+  }
+}
+
 function hostNotAllowed(url: URL): string {
-  return tr(`${url.host} は、このサーバーが開いてよいホストに含まれていません (許可: ${getSettings().allowedHosts?.join("、")})。対象を増やすには、起動時のオプション --allow-host で指定してください。`, `${url.host} is not among the hosts this server may open (allowed: ${getSettings().allowedHosts?.join(", ")}). To add it, start the server with --allow-host.`);
+  const allowed = getSettings().allowedHosts ?? [];
+  return tr(
+    `${url.host} は、このサーバーが開いてよいホストに含まれていません (許可: ${allowed.join("、")})。対象を増やすには、起動時のオプション --allow-host で指定してください。`,
+    `${url.host} is not among the hosts this server may open (allowed: ${allowed.join(", ")}). To add it, start the server with --allow-host.`,
+  );
 }
 
 export function assertAllowedUrl(raw: string): URL {
@@ -131,14 +168,29 @@ export async function withPage<T>(options: PageOptions, run: (page: Page) => Pro
     };
     const blockedFrames = new Set<string>();
 
-    // ページを移動する要求を、移動する前に確かめる。画像などの読み込みは止めない。
+    /**
+     * 画像、スクリプト、通信などの読み込み先として使ってよい URL か。ページそのものと同じ一覧に従う。
+     * file: は、許可したディレクトリの中であれば、HTML 以外のファイルも読み込める。
+     */
+    const resourceAllowed = (target: URL): boolean => {
+      if (/^(https?|wss?):$/.test(target.protocol)) return isHostAllowed(target);
+      if (target.protocol === "file:") return url.protocol === "file:" && isInsideFileRoot(target);
+      return SAFE_SCHEMES.has(target.protocol);
+    };
+    const blockedResources = new Set<string>();
+
+    // すべての要求を、送る前に確かめる。
     await context.route("**/*", (route) => {
       const request = route.request();
-      if (!request.isNavigationRequest()) return route.fallback();
       let target: URL;
       try {
         target = new URL(request.url());
       } catch {
+        return route.abort("blockedbyclient");
+      }
+      if (!request.isNavigationRequest()) {
+        if (resourceAllowed(target)) return route.fallback();
+        blockedResources.add(target.protocol === "file:" ? target.pathname : target.host);
         return route.abort("blockedbyclient");
       }
       if (request.frame().parentFrame() !== null) {
@@ -147,6 +199,21 @@ export async function withPage<T>(options: PageOptions, run: (page: Page) => Pro
         return route.abort("blockedbyclient");
       }
       return topAllowed(target) ? route.fallback() : route.abort("blockedbyclient");
+    });
+    // WebSocket は上の仕組みを通らないので、別に確かめる。
+    await context.routeWebSocket(/.*/, (ws) => {
+      let allowed = false;
+      try {
+        allowed = resourceAllowed(new URL(ws.url()));
+      } catch {
+        allowed = false;
+      }
+      if (allowed) {
+        ws.connectToServer();
+      } else {
+        blockedResources.add(new URL(ws.url()).host);
+        void ws.close({ code: 1008, reason: "blocked" });
+      }
     });
 
     const page = await context.newPage();
@@ -171,6 +238,23 @@ export async function withPage<T>(options: PageOptions, run: (page: Page) => Pro
       }
     };
     page.on("framenavigated", (frame) => watch(frame.url(), frame.parentFrame() !== null));
+    // 読み込みの転送も、送る前の確認を通らない。許可したホストが一覧にないホストへ転送したら、
+    // その中身が画面に写っているおそれがあるので、結果を返さない。
+    page.on("request", (request) => {
+      if (request.redirectedFrom() === null || request.isNavigationRequest()) return;
+      let target: URL;
+      try {
+        target = new URL(request.url());
+      } catch {
+        return;
+      }
+      if (!resourceAllowed(target)) {
+        violation ??= tr(
+          `読み込みが、開いてよいホストに含まれない ${target.host} へ転送されました。読み込ませるには、起動時のオプション --allow-host で指定してください。`,
+          `A load was redirected to ${target.host}, which is not among the allowed hosts. To let it load, start the server with --allow-host.`,
+        );
+      }
+    });
     const assertStayed = (): void => {
       watch(page.url(), false);
       if (violation) throw new Error(violation);
@@ -187,6 +271,16 @@ export async function withPage<T>(options: PageOptions, run: (page: Page) => Pro
     await page.evaluate(installHelpers);
     const result = await run(page);
     assertStayed();
+    if (blockedResources.size > 0) {
+      const hosts = [...blockedResources].slice(0, 8).join(tr("、", ", "));
+      addNote(
+        result,
+        tr(
+          `開いてよいホストに含まれない ${blockedResources.size} 件の宛先 (${hosts}) からの読み込みを止めました。フォントやスタイルが読み込まれず、見た目が実際と違っている可能性があります。読み込ませるには、起動時のオプション --allow-host で指定してください。`,
+          `Blocked loads from ${blockedResources.size} destination(s) outside the allowed hosts (${hosts}). Fonts or styles may be missing, so the page may look different from what users see. To let them load, start the server with --allow-host.`,
+        ),
+      );
+    }
     if (blockedFrames.size > 0) {
       addNote(result, tr(`iframe の読み込みを ${blockedFrames.size} 件止めました (${[...blockedFrames].slice(0, 5).join("、")})。iframe の中身は検査にも画像にも含まれていません。含めるには、起動時のオプション --allow-frame-host で指定してください。`, `Blocked ${blockedFrames.size} iframe load(s) (${[...blockedFrames].slice(0, 5).join(", ")}). Iframe content is not included in the checks or the screenshots. To include it, start the server with --allow-frame-host.`));
     }
