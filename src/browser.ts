@@ -34,17 +34,34 @@ function resolveAllowedFile(url: URL): URL {
   if (!getSettings().allowFile) {
     throw new Error(tr("このサーバーは、file: の URL を受け付けない設定で起動されています。", "This server was started with file: URLs disabled."));
   }
+  // ホスト名つきの file: URL は、Windows ではネットワーク上の共有フォルダを指す。開こうとするだけで
+  // 認証情報が外へ送られることがあるので、ファイルに触れる前に断る。
+  if (url.hostname !== "" && url.hostname !== "localhost") {
+    throw new Error(tr("ホスト名つきの file: URL は開けません。", "file: URLs with a host name cannot be opened."));
+  }
+  const root = fileRoot();
+  const outside = (candidate: string): boolean => {
+    const relative = path.relative(root, candidate);
+    return relative.startsWith("..") || path.isAbsolute(relative);
+  };
+  const outsideError = (): Error =>
+    new Error(
+      tr(
+        `file: の URL は ${root} の中だけを開けます。別の場所を検査するには、起動時のオプション --file-root で指定してください。`,
+        `file: URLs may only be opened inside ${root}. To audit another location, start the server with --file-root.`,
+      ),
+    );
+  // まず文字列の上で範囲を確かめ、範囲の外のパスにはファイルシステムの問い合わせをしない。
+  const lexical = path.resolve(fileURLToPath(url));
+  if (lexical.startsWith("\\\\") || lexical.startsWith("//") || outside(lexical)) throw outsideError();
   let real: string;
   try {
-    real = realpathSync(fileURLToPath(url));
+    real = realpathSync(lexical);
   } catch {
     throw new Error(tr(`ファイルが見つかりません: ${url.pathname}`, `File not found: ${url.pathname}`));
   }
-  const root = fileRoot();
-  const relative = path.relative(root, real);
-  if (relative.startsWith("..") || path.isAbsolute(relative)) {
-    throw new Error(tr(`file: の URL は ${root} の中だけを開けます。別の場所を検査するには、起動時のオプション --file-root で指定してください。`, `file: URLs may only be opened inside ${root}. To audit another location, start the server with --file-root.`));
-  }
+  // リンクをたどった先も、範囲の中にあることを確かめる。
+  if (outside(real)) throw outsideError();
   if (!HTML_EXTENSIONS.has(path.extname(real).toLowerCase())) {
     throw new Error(tr("file: の URL で開けるのは、拡張子が .html、.htm、.xhtml のファイルだけです。", "Only .html, .htm and .xhtml files may be opened through file: URLs."));
   }
