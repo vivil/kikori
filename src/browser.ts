@@ -127,7 +127,20 @@ export async function withPage<T>(options: PageOptions, run: (page: Page) => Pro
   const timeout = options.timeoutMs ?? 30_000;
   let browser: Browser | undefined;
   try {
-    browser = await chromium.launch();
+    try {
+      browser = await chromium.launch();
+    } catch (error) {
+      // 入れた直後は、ブラウザ本体がまだない。Playwright の長い案内の代わりに、次に打つコマンドを伝える。
+      if (error instanceof Error && /Executable doesn't exist/.test(error.message)) {
+        throw new Error(
+          tr(
+            "検査に使うブラウザが入っていません。`npx kikori install` を実行してから、もう一度試してください。",
+            "The browser used for the checks is not installed. Run `npx kikori install`, then try again.",
+          ),
+        );
+      }
+      throw error;
+    }
     const context = await browser.newContext({
       viewport: options.viewport,
       deviceScaleFactor: 1,

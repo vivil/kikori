@@ -1,7 +1,13 @@
 #!/usr/bin/env node
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { configure, getSettings, parseArgs, usage } from "./config.js";
+import { installBrowser } from "./install.js";
 import { createServer } from "./server.js";
+
+// 「kikori install」は、サーバーを起動せずにブラウザを入れて終わる。
+if (process.argv[2] === "install") {
+  process.exit(installBrowser(process.argv.slice(3)));
+}
 
 // 標準出力は MCP の通信に使うので、人に向けた文章は標準エラーに出す。
 try {

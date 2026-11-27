@@ -10,6 +10,7 @@ import { checkReflow } from "./checks/reflow.js";
 import { checkTextSpacing } from "./checks/textSpacing.js";
 import { captureScreenshot, collectEvidence, JUDGEABLE } from "./evidence.js";
 import { tr } from "./i18n.js";
+import { packageVersion } from "./install.js";
 
 const annotations = { readOnlyHint: true, openWorldHint: true } as const;
 
@@ -47,7 +48,7 @@ async function respondWithImages(run: () => Promise<{ body: unknown; images: { d
 
 /** ツールの説明文は、起動時に決めた言語で作る。そのため、サーバーを作る時点で組み立てる。 */
 export function createServer(): McpServer {
-  const server = new McpServer({ name: "kikori", version: "0.1.0" });
+  const server = new McpServer({ name: "kikori", version: packageVersion() });
 
   const common = {
     url: z
