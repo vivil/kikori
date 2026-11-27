@@ -107,7 +107,7 @@ Claude Code などのエージェントから呼び出すと、指摘が達成�
 
 ## 使い方
 
-Node.js 22 以上が必要です。
+Node.js 26 以上が必要です。
 
 ```sh
 npm install

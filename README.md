@@ -107,7 +107,7 @@ The browser is launched seven times per page, so each page takes around five sec
 
 ## Getting started
 
-Node.js 22 or later is required.
+Node.js 26 or later is required.
 
 ```sh
 npm install
