@@ -258,6 +258,8 @@ npm test
 
 Every pull request and every push to `main` runs the same tests in GitHub Actions.
 
+Commit messages and pull request titles follow [Conventional Commits](https://www.conventionalcommits.org) with the types of the Angular convention: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style` and `test`. GitHub Actions checks them with commitlint. To check locally, run `npx commitlint --from main`.
+
 ## Releasing
 
 1. Update `version` in `package.json` (for example with `npm version minor`) and merge the change into `main`.

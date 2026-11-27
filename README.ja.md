@@ -258,6 +258,8 @@ npm test
 
 プルリクエストと `main` への push のたびに、GitHub Actions で同じテストが走ります。
 
+コミットメッセージとプルリクエストのタイトルは、[Conventional Commits](https://www.conventionalcommits.org) に従います。種別は Angular の規約に合わせ、`build`、`chore`、`ci`、`docs`、`feat`、`fix`、`perf`、`refactor`、`revert`、`style`、`test` を使います。GitHub Actions が commitlint で確かめます。手元では `npx commitlint --from main` で確かめられます。
+
 ## リリースの手順
 
 1. `package.json` の `version` を更新し (`npm version minor` など)、その変更を `main` に取り込みます。
