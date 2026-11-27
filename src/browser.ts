@@ -72,6 +72,22 @@ function resolveAllowedFile(url: URL): URL {
   return resolved;
 }
 
+/** file: の URL が、許可したディレクトリの中の実在するファイルを指しているか。拡張子は問わない。 */
+function isInsideFileRoot(url: URL): boolean {
+  if (!getSettings().allowFile || (url.hostname !== "" && url.hostname !== "localhost")) return false;
+  try {
+    const root = fileRoot();
+    const outside = (candidate: string): boolean => {
+      const relative = path.relative(root, candidate);
+      return relative.startsWith("..") || path.isAbsolute(relative);
+    };
+    const lexical = path.resolve(fileURLToPath(url));
+    return !outside(lexical) && !outside(realpathSync(lexical));
+  } catch {
+    return false;
+  }
+}
+
 function hostNotAllowed(url: URL): string {
   const allowed = getSettings().allowedHosts ?? [];
   return tr(
@@ -152,14 +168,29 @@ export async function withPage<T>(options: PageOptions, run: (page: Page) => Pro
     };
     const blockedFrames = new Set<string>();
 
-    // ページを移動する要求を、移動する前に確かめる。画像などの読み込みは止めない。
+    /**
+     * 画像、スクリプト、通信などの読み込み先として使ってよい URL か。ページそのものと同じ一覧に従う。
+     * file: は、許可したディレクトリの中であれば、HTML 以外のファイルも読み込める。
+     */
+    const resourceAllowed = (target: URL): boolean => {
+      if (/^(https?|wss?):$/.test(target.protocol)) return isHostAllowed(target);
+      if (target.protocol === "file:") return url.protocol === "file:" && isInsideFileRoot(target);
+      return SAFE_SCHEMES.has(target.protocol);
+    };
+    const blockedResources = new Set<string>();
+
+    // すべての要求を、送る前に確かめる。
     await context.route("**/*", (route) => {
       const request = route.request();
-      if (!request.isNavigationRequest()) return route.fallback();
       let target: URL;
       try {
         target = new URL(request.url());
       } catch {
+        return route.abort("blockedbyclient");
+      }
+      if (!request.isNavigationRequest()) {
+        if (resourceAllowed(target)) return route.fallback();
+        blockedResources.add(target.protocol === "file:" ? target.pathname : target.host);
         return route.abort("blockedbyclient");
       }
       if (request.frame().parentFrame() !== null) {
@@ -168,6 +199,21 @@ export async function withPage<T>(options: PageOptions, run: (page: Page) => Pro
         return route.abort("blockedbyclient");
       }
       return topAllowed(target) ? route.fallback() : route.abort("blockedbyclient");
+    });
+    // WebSocket は上の仕組みを通らないので、別に確かめる。
+    await context.routeWebSocket(/.*/, (ws) => {
+      let allowed = false;
+      try {
+        allowed = resourceAllowed(new URL(ws.url()));
+      } catch {
+        allowed = false;
+      }
+      if (allowed) {
+        ws.connectToServer();
+      } else {
+        blockedResources.add(new URL(ws.url()).host);
+        void ws.close({ code: 1008, reason: "blocked" });
+      }
     });
 
     const page = await context.newPage();
@@ -208,6 +254,16 @@ export async function withPage<T>(options: PageOptions, run: (page: Page) => Pro
     await page.evaluate(installHelpers);
     const result = await run(page);
     assertStayed();
+    if (blockedResources.size > 0) {
+      const hosts = [...blockedResources].slice(0, 8).join(tr("、", ", "));
+      addNote(
+        result,
+        tr(
+          `開いてよいホストに含まれない ${blockedResources.size} 件の宛先 (${hosts}) からの読み込みを止めました。フォントやスタイルが読み込まれず、見た目が実際と違っている可能性があります。読み込ませるには、起動時のオプション --allow-host で指定してください。`,
+          `Blocked loads from ${blockedResources.size} destination(s) outside the allowed hosts (${hosts}). Fonts or styles may be missing, so the page may look different from what users see. To let them load, start the server with --allow-host.`,
+        ),
+      );
+    }
     if (blockedFrames.size > 0) {
       addNote(result, tr(`iframe の読み込みを ${blockedFrames.size} 件止めました (${[...blockedFrames].slice(0, 5).join("、")})。iframe の中身は検査にも画像にも含まれていません。含めるには、起動時のオプション --allow-frame-host で指定してください。`, `Blocked ${blockedFrames.size} iframe load(s) (${[...blockedFrames].slice(0, 5).join(", ")}). Iframe content is not included in the checks or the screenshots. To include it, start the server with --allow-frame-host.`));
     }

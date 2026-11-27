@@ -159,9 +159,16 @@ claude mcp add kikori -- node /path/to/kikori/dist/src/index.js --allow-host loc
 
 - ツールに渡された URL が一覧にないとき、ページを開かずにエラーを返します。
 - ページの中のリンクやスクリプトが、一覧にないホストへ移動しようとしたとき、その移動を止めます。
+- ページが、一覧にないホストから画像やスクリプトを読み込もうとしたとき、その読み込みを止めます。
 - 一覧にあるホストが、ほかのホストへ転送したとき、結果を返さずにエラーにします。
 
-画像やスクリプトなどの読み込みは止めません。CDN から読み込むフォントやスタイルを止めると、見た目が崩れて検査結果が実態とずれるためです。信頼できないサイトを検査すると、そのページが `localhost` や LAN の中の機器へ要求を送ることがあります。これは、ふだんのブラウザでそのサイトを開いたときと同じ挙動です。
+画像、スクリプト、スタイル、通信 (fetch や WebSocket) の読み込み先も、同じ一覧に従います。一覧にないホストからは何も読み込みません。
+
+読み込みを止めたときは、結果の `notes` に宛先が入ります。フォントやスタイルを CDN から読み込むページでは、見た目が実際と違った状態で検査されます。`notes` に出たホストを `--allow-host` に足してください。
+
+```sh
+claude mcp add kikori -- node /path/to/kikori/dist/src/index.js --allow-host localhost --allow-host fonts.googleapis.com --allow-host fonts.gstatic.com
+```
 
 すべてのホストを開けるようにするには、`--allow-host '*'` を指定します。
 

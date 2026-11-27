@@ -10,12 +10,26 @@ const settings = (hosts: string[] | null, frames: string[] = []): Settings => ({
 const original = getSettings();
 let server: Server;
 let port: number;
+const pixelHits: string[] = [];
 
 before(async () => {
   server = createServer((req, res) => {
     if (req.url === "/redirect") {
       // 許可していないホスト (localhost) へ転送する。
       res.writeHead(302, { location: `http://localhost:${port}/page` }).end();
+      return;
+    }
+    if (req.url === "/pixel") {
+      // どのホスト名あてに届いたかを記録する。
+      pixelHits.push(req.headers.host ?? "");
+      res.writeHead(200, { "content-type": "image/gif" });
+      res.end(Buffer.from("R0lGODlhAQABAAAAACwAAAAAAQABAAA=", "base64"));
+      return;
+    }
+    if (req.url === "/with-image") {
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      res.end(`<!doctype html><html lang="ja"><title>画像のあるページ</title><body><h1>画像のあるページ</h1>
+        <img alt="同じホスト" src="/pixel"><img alt="別のホスト" src="http://localhost:${port}/pixel"></body></html>`);
       return;
     }
     if (req.url === "/framed") {
@@ -131,6 +145,20 @@ test("宛先の制限: 許可したホストから別のホストへ転送され
 test("宛先の制限: 読み込みのあとで別のホストへ転送されても、結果を返さない", async () => {
   configure(settings([`127.0.0.1:${port}`]));
   await assert.rejects(checkReflow({ url: `http://127.0.0.1:${port}/late`, waitMs: 400 }), /開いてよいホストに含まれていません/);
+});
+
+test("読み込み: 画像などの読み込みも、開いてよいホストの一覧に従う", async () => {
+  configure(settings([`127.0.0.1:${port}`]));
+  pixelHits.length = 0;
+  const blocked = await checkReflow({ url: `http://127.0.0.1:${port}/with-image` });
+  assert.deepEqual(pixelHits, [`127.0.0.1:${port}`]);
+  assert.match(blocked.notes?.join("\n") ?? "", new RegExp(`1 件の宛先 \\(localhost:${port}\\) からの読み込みを止めました`));
+
+  configure(settings([`127.0.0.1:${port}`, `localhost:${port}`]));
+  pixelHits.length = 0;
+  const allowed = await checkReflow({ url: `http://127.0.0.1:${port}/with-image` });
+  assert.deepEqual(pixelHits.sort(), [`127.0.0.1:${port}`, `localhost:${port}`]);
+  assert.equal(allowed.notes, undefined);
 });
 
 /** それぞれの iframe の中身が読み込まれたかを調べる。 */

@@ -159,9 +159,16 @@ The restriction applies in these situations.
 
 - When the URL passed to a tool is not on the list, an error is returned without opening the page.
 - When a link or script in the page tries to move to a host that is not on the list, the navigation is blocked.
+- When the page tries to load an image or script from a host that is not on the list, the load is blocked.
 - When a listed host redirects to another host, an error is returned instead of a result.
 
-Loading images, scripts and other subresources is not blocked. Blocking fonts and styles served from a CDN would break the layout and make the results differ from what users see. When you audit a site you do not trust, its page may send requests to `localhost` or to devices on your LAN. This is the same as opening that site in your everyday browser.
+Images, scripts, styles and connections (fetch and WebSocket) follow the same list. Nothing is loaded from a host that is not on it.
+
+When loads are blocked, the `notes` of the result give the destinations. A page that takes fonts or styles from a CDN is then audited looking different from what users see. Add the hosts named in `notes` to `--allow-host`.
+
+```sh
+claude mcp add kikori -- node /path/to/kikori/dist/src/index.js --allow-host localhost --allow-host fonts.googleapis.com --allow-host fonts.gstatic.com
+```
 
 To allow every host, pass `--allow-host '*'`.
 
