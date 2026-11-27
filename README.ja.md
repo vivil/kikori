@@ -256,6 +256,16 @@ npm test
 
 `fixtures-src/frameworks` には、React、Vue、Angular で同じ不具合を仕込んだサンプルがあります。`npm test` の中で esbuild がまとめ、3 つとも同じ指摘が出ることを確かめます。
 
+プルリクエストと `main` への push のたびに、GitHub Actions で同じテストが走ります。
+
+## リリースの手順
+
+1. `package.json` の `version` を更新し (`npm version minor` など)、その変更を `main` に取り込みます。
+2. `v` にそのバージョンを続けたタグ (`v0.2.0` など) で、GitHub のリリースを公開します。
+3. リリース用のワークフローがテストを実行し、パッケージを npm へ公開します。
+
+ワークフローは npm の trusted publishing で認証するため、リポジトリに npm のトークンを置きません。タグが `package.json` のバージョンと一致しないときは、公開せずに止まります。
+
 ## 今後の予定
 
 - iOS と Android のアプリについて、読み上げ順やラベルを検査するツールを追加します。

@@ -256,6 +256,16 @@ npm test
 
 `fixtures-src/frameworks` holds samples with the same defects written in React, Vue and Angular. `npm test` bundles them with esbuild and checks that all three produce the same findings.
 
+Every pull request and every push to `main` runs the same tests in GitHub Actions.
+
+## Releasing
+
+1. Update `version` in `package.json` (for example with `npm version minor`) and merge the change into `main`.
+2. Publish a GitHub release whose tag is `v` followed by that version, such as `v0.2.0`.
+3. The release workflow runs the tests and publishes the package to npm.
+
+The workflow authenticates with npm trusted publishing, so no npm token is stored in the repository. It stops if the tag does not match the version in `package.json`.
+
 ## Roadmap
 
 - Tools that check reading order and labels in iOS and Android apps.
