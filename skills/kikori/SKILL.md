@@ -10,7 +10,7 @@ kikori is an MCP server that audits WCAG 2.1 success criteria in a real browser.
 ## Before you start
 
 - The tools are named `audit_page`, `audit_site`, `collect_evidence`, `capture_screenshot` and `check_*`. If they are not available, tell the user to register the server with `claude mcp add kikori -- npx -y kikori`.
-- If a tool reports that the browser is not installed, tell the user to run `npx kikori install`.
+- The first check may take up to a minute, because kikori downloads its browser once. If a tool reports that the browser is not installed or could not be downloaded, tell the user to run `npx kikori install`.
 - By default kikori opens only `localhost` and `127.0.0.1`. If a tool reports that a host is not allowed, do not try to work around it. Tell the user which host to add with `--allow-host` when starting the server.
 
 ## Workflow

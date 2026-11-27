@@ -6,7 +6,7 @@ import { assertAllowedUrl, withPage } from "../src/browser.js";
 import { checkReflow } from "../src/checks/reflow.js";
 import { configure, getSettings, isHostAllowed, LOOPBACK_HOSTS, parseArgs, type Settings } from "../src/config.js";
 
-const settings = (hosts: string[] | null, frames: string[] = []): Settings => ({ lang: "ja", allowedHosts: hosts, allowedFrameHosts: frames, fileRoot: null, allowFile: true });
+const settings = (hosts: string[] | null, frames: string[] = []): Settings => ({ lang: "ja", allowedHosts: hosts, allowedFrameHosts: frames, fileRoot: null, allowFile: true, autoInstall: true });
 const original = getSettings();
 let server: Server;
 let port: number;
@@ -80,8 +80,11 @@ test("起動時の引数: ホストの一覧、file: の範囲、無効化を読
     allowedFrameHosts: ["self", "player.example.com"],
     fileRoot: "/srv/site",
     allowFile: false,
+    autoInstall: true,
   });
-  assert.deepEqual(parseArgs([], {}).settings, { lang: "en", allowedHosts: LOOPBACK_HOSTS, allowedFrameHosts: [], fileRoot: null, allowFile: true });
+  assert.equal(parseArgs(["--no-auto-install"], {}).settings.autoInstall, false);
+  assert.equal(parseArgs([], { KIKORI_NO_AUTO_INSTALL: "1" }).settings.autoInstall, false);
+  assert.deepEqual(parseArgs([], {}).settings, { lang: "en", allowedHosts: LOOPBACK_HOSTS, allowedFrameHosts: [], fileRoot: null, allowFile: true, autoInstall: true });
   // * を指定したときだけ、すべてのホストを開く。
   assert.equal(parseArgs(["--allow-host", "*"], {}).settings.allowedHosts, null);
   assert.equal(parseArgs([], { KIKORI_ALLOWED_HOSTS: "*" }).settings.allowedHosts, null);
@@ -240,7 +243,7 @@ test("file: のページは、許可したディレクトリの外のファイ�
 });
 
 test("宛先の制限: file: の URL を無効にできる", () => {
-  configure({ lang: "ja", allowedHosts: null, allowedFrameHosts: [], fileRoot: null, allowFile: false });
+  configure({ lang: "ja", allowedHosts: null, allowedFrameHosts: [], fileRoot: null, allowFile: false, autoInstall: true });
   const fixture = new URL("../../test/fixtures/good.html", import.meta.url).href;
   assert.throws(() => assertAllowedUrl(fixture), /受け付けない設定/);
   configure(original);

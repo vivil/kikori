@@ -19,6 +19,8 @@ export interface Settings {
   fileRoot: string | null;
   /** file: の URL を受け付けるか */
   allowFile: boolean;
+  /** ブラウザ本体がないとき、最初の検査の前に自動で取得するか */
+  autoInstall: boolean;
 }
 
 /** 既定で開いてよいホスト。開発サーバーの検査は、設定なしでできるようにする。 */
@@ -53,6 +55,7 @@ function fromEnvironment(env: NodeJS.ProcessEnv): Settings {
     allowedFrameHosts: splitList(env.KIKORI_ALLOWED_FRAME_HOSTS),
     fileRoot: env.KIKORI_FILE_ROOT ?? null,
     allowFile: env.KIKORI_NO_FILE !== "1",
+    autoInstall: env.KIKORI_NO_AUTO_INSTALL !== "1",
   };
 }
 
@@ -67,7 +70,7 @@ export function configure(settings: Settings): void {
 }
 
 const USAGE_JA = `使い方: kikori [オプション]
-        kikori install [--with-deps]   検査に使うブラウザを入れる。最初に 1 回だけ実行する。
+        kikori install [--with-deps]   検査に使うブラウザを、前もって入れる。
                                        --with-deps は、Linux で必要なライブラリも入れる。
 
   --lang <ja|en>          検査結果やエラーの文面に使う言語。
@@ -83,13 +86,15 @@ const USAGE_JA = `使い方: kikori [オプション]
   --file-root <パス>      file: の URL で開いてよいディレクトリ。
                           既定では、サーバーを起動したディレクトリ。
   --no-file               file: の URL を受け付けない。
+  --no-auto-install       ブラウザがないとき、自動では取得しない。
+                          指定しないときは、最初の検査の前にダウンロードする (ディスク上で約 300 MB)。
   --help                  この説明を表示する。
 
 環境変数 KIKORI_LANG、KIKORI_ALLOWED_HOSTS、KIKORI_ALLOWED_FRAME_HOSTS、KIKORI_FILE_ROOT、
-KIKORI_NO_FILE=1 でも指定できる。オプションと環境変数の両方があるときは、オプションを使う。`;
+KIKORI_NO_FILE=1、KIKORI_NO_AUTO_INSTALL=1 でも指定できる。オプションと環境変数の両方があるときは、オプションを使う。`;
 
 const USAGE_EN = `Usage: kikori [options]
-       kikori install [--with-deps]   Install the browser used for the checks. Run it once, first.
+       kikori install [--with-deps]   Install the browser used for the checks ahead of time.
                                       --with-deps also installs the libraries needed on Linux.
 
   --lang <ja|en>          Language for results and errors.
@@ -105,10 +110,13 @@ const USAGE_EN = `Usage: kikori [options]
   --file-root <path>      Directory that file: URLs may be opened from.
                           Defaults to the directory the server was started in.
   --no-file               Refuse file: URLs.
+  --no-auto-install       Do not download the browser automatically when it is missing.
+                          By default it is downloaded before the first check (about 300 MB on disk).
   --help                  Show this help.
 
 The same settings can be given with the environment variables KIKORI_LANG, KIKORI_ALLOWED_HOSTS,
-KIKORI_ALLOWED_FRAME_HOSTS, KIKORI_FILE_ROOT and KIKORI_NO_FILE=1. Options take precedence.`;
+KIKORI_ALLOWED_FRAME_HOSTS, KIKORI_FILE_ROOT, KIKORI_NO_FILE=1 and KIKORI_NO_AUTO_INSTALL=1.
+Options take precedence.`;
 
 export function usage(language: "ja" | "en"): string {
   return language === "ja" ? USAGE_JA : USAGE_EN;
@@ -151,6 +159,9 @@ export function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env):
         break;
       case "--no-file":
         settings.allowFile = false;
+        break;
+      case "--no-auto-install":
+        settings.autoInstall = false;
         break;
       case "--help":
       case "-h":

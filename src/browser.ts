@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { chromium, type Browser, type Page } from "playwright";
 import { getSettings, isFrameHostAllowed, isHostAllowed } from "./config.js";
 import { installHelpers } from "./helpers.js";
+import { launchWithInstall, MissingBrowserError } from "./install.js";
 
 export interface PageOptions {
   url: string;
@@ -128,18 +129,21 @@ export async function withPage<T>(options: PageOptions, run: (page: Page) => Pro
   let browser: Browser | undefined;
   try {
     try {
-      browser = await chromium.launch();
+      // ブラウザ本体がまだなければ、設定に応じて、ここで 1 度だけ取得する。
+      browser = await launchWithInstall(() => chromium.launch(), getSettings().autoInstall);
     } catch (error) {
-      // 入れた直後は、ブラウザ本体がまだない。Playwright の長い案内の代わりに、次に打つコマンドを伝える。
-      if (error instanceof Error && /Executable doesn't exist/.test(error.message)) {
-        throw new Error(
-          tr(
-            "検査に使うブラウザが入っていません。`npx kikori install` を実行してから、もう一度試してください。",
-            "The browser used for the checks is not installed. Run `npx kikori install`, then try again.",
-          ),
-        );
-      }
-      throw error;
+      if (!(error instanceof MissingBrowserError)) throw error;
+      throw new Error(
+        error.downloadFailure
+          ? tr(
+              `検査に使うブラウザを自動で取得できませんでした (${error.downloadFailure})。ネットワークを確かめ、\`npx kikori install\` を実行してから、もう一度試してください。`,
+              `The browser used for the checks could not be downloaded automatically (${error.downloadFailure}). Check the network, run \`npx kikori install\`, then try again.`,
+            )
+          : tr(
+              "検査に使うブラウザが入っていません。`npx kikori install` を実行してから、もう一度試してください。",
+              "The browser used for the checks is not installed. Run `npx kikori install`, then try again.",
+            ),
+      );
     }
     const context = await browser.newContext({
       viewport: options.viewport,
