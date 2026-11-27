@@ -36,11 +36,13 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "npm run clean && tsc -p tsconfig.json",
     "start": "node dist/src/index.js",
     "test": "npm run build && npm run build:fixtures && KIKORI_LANG=ja node --test --test-concurrency=1 \"dist/test/*.test.js\"",
     "build:fixtures": "node scripts/build-fixtures.mjs",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "benchmark:act": "npm run build && node scripts/act-benchmark.mjs",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\""
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
