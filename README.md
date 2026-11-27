@@ -136,15 +136,17 @@ Results include screenshots and text from the page. So that a misled model canno
 | Option | Environment variable | Description |
 |---|---|---|
 | `--lang <ja\|en>` | `KIKORI_LANG` | Language for results and errors. Defaults to `ja` when the system locale is Japanese, otherwise `en` |
-| `--allow-host <host>` | `KIKORI_ALLOWED_HOSTS` | Host that may be opened. Repeatable, or comma-separated. When given, hosts outside the list are refused |
+| `--allow-host <host>` | `KIKORI_ALLOWED_HOSTS` | Host that may be opened. Repeatable, or comma-separated. When omitted, only `localhost` and `127.0.0.1` may be opened. `*` allows every host |
 | `--allow-frame-host <host>` | `KIKORI_ALLOWED_FRAME_HOSTS` | Host that iframes in the page may load. When omitted, every iframe load is blocked |
 | `--file-root <path>` | `KIKORI_FILE_ROOT` | Directory that `file` URLs may be opened from. Defaults to the directory the server was started in |
 | `--no-file` | `KIKORI_NO_FILE=1` | Refuse `file` URLs |
 
-To audit only a dev server:
+With no options, only servers on your own machine (`localhost`, `*.localhost`, `127.0.0.1`, `[::1]`) can be audited. Auditing a site under development needs no configuration.
+
+To audit a public site, name its host. Giving `--allow-host` replaces the default list, so list `localhost` as well if you also audit a dev server.
 
 ```sh
-claude mcp add kikori -- node /path/to/kikori/dist/src/index.js --allow-host localhost:3000 --no-file
+claude mcp add kikori -- node /path/to/kikori/dist/src/index.js --allow-host localhost --allow-host example.com
 ```
 
 Hosts can be written in three ways.
@@ -159,7 +161,9 @@ The restriction applies in these situations.
 - When a link or script in the page tries to move to a host that is not on the list, the navigation is blocked.
 - When a listed host redirects to another host, an error is returned instead of a result.
 
-Loading images, scripts and other subresources is not blocked. Without `--allow-host`, hosts are not restricted.
+Loading images, scripts and other subresources is not blocked. Blocking fonts and styles served from a CDN would break the layout and make the results differ from what users see. When you audit a site you do not trust, its page may send requests to `localhost` or to devices on your LAN. This is the same as opening that site in your everyday browser.
+
+To allow every host, pass `--allow-host '*'`.
 
 ### Iframes
 

@@ -136,15 +136,17 @@ http://localhost:3000/ を audit_page でレベル AA まで検査して、fail 
 | オプション | 環境変数 | 説明 |
 |---|---|---|
 | `--lang <ja\|en>` | `KIKORI_LANG` | 検査結果やエラーの文面に使う言語。指定しないときは、環境の言語設定が日本語なら `ja`、それ以外は `en` です |
-| `--allow-host <ホスト>` | `KIKORI_ALLOWED_HOSTS` | 開いてよいホスト。複数回の指定と、カンマ区切りができます。指定すると、一覧にないホストは開きません |
+| `--allow-host <ホスト>` | `KIKORI_ALLOWED_HOSTS` | 開いてよいホスト。複数回の指定と、カンマ区切りができます。指定しないときは、`localhost` と `127.0.0.1` だけを開きます。`*` を指定すると、すべてのホストを開きます |
 | `--allow-frame-host <ホスト>` | `KIKORI_ALLOWED_FRAME_HOSTS` | ページの中の iframe が読み込んでよいホスト。指定しないときは、iframe の読み込みをすべて止めます |
 | `--file-root <パス>` | `KIKORI_FILE_ROOT` | `file` の URL で開いてよいディレクトリ。既定では、サーバーを起動したディレクトリです |
 | `--no-file` | `KIKORI_NO_FILE=1` | `file` の URL を受け付けません |
 
-開発サーバーだけを検査する場合の登録例です。
+何も指定しなければ、自分のコンピューターで動くサーバー (`localhost`、`*.localhost`、`127.0.0.1`、`[::1]`) だけを検査できます。開発中のサイトを検査するなら、設定は要りません。
+
+公開しているサイトを検査するときは、そのホストを指定します。`--allow-host` を指定すると既定の一覧は使われなくなるので、開発サーバーも検査するなら `localhost` を並べて書いてください。
 
 ```sh
-claude mcp add kikori -- node /path/to/kikori/dist/src/index.js --allow-host localhost:3000 --no-file
+claude mcp add kikori -- node /path/to/kikori/dist/src/index.js --allow-host localhost --allow-host example.com
 ```
 
 ホストの書き方は 3 通りあります。
@@ -159,7 +161,9 @@ claude mcp add kikori -- node /path/to/kikori/dist/src/index.js --allow-host loc
 - ページの中のリンクやスクリプトが、一覧にないホストへ移動しようとしたとき、その移動を止めます。
 - 一覧にあるホストが、ほかのホストへ転送したとき、結果を返さずにエラーにします。
 
-画像やスクリプトなどの読み込みは止めません。`--allow-host` を指定しないときは、ホストを制限しません。
+画像やスクリプトなどの読み込みは止めません。CDN から読み込むフォントやスタイルを止めると、見た目が崩れて検査結果が実態とずれるためです。信頼できないサイトを検査すると、そのページが `localhost` や LAN の中の機器へ要求を送ることがあります。これは、ふだんのブラウザでそのサイトを開いたときと同じ挙動です。
+
+すべてのホストを開けるようにするには、`--allow-host '*'` を指定します。
 
 ### iframe
 

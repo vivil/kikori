@@ -73,7 +73,11 @@ function resolveAllowedFile(url: URL): URL {
 }
 
 function hostNotAllowed(url: URL): string {
-  return tr(`${url.host} は、このサーバーが開いてよいホストに含まれていません (許可: ${getSettings().allowedHosts?.join("、")})。対象を増やすには、起動時のオプション --allow-host で指定してください。`, `${url.host} is not among the hosts this server may open (allowed: ${getSettings().allowedHosts?.join(", ")}). To add it, start the server with --allow-host.`);
+  const allowed = getSettings().allowedHosts ?? [];
+  return tr(
+    `${url.host} は、このサーバーが開いてよいホストに含まれていません (許可: ${allowed.join("、")})。対象を増やすには、起動時のオプション --allow-host で指定してください。`,
+    `${url.host} is not among the hosts this server may open (allowed: ${allowed.join(", ")}). To add it, start the server with --allow-host.`,
+  );
 }
 
 export function assertAllowedUrl(raw: string): URL {

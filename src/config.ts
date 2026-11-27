@@ -5,7 +5,10 @@
 export interface Settings {
   /** 検査結果やエラーの文面に使う言語 */
   lang: "ja" | "en";
-  /** 開いてよいホストの一覧。null のときは制限しない。 */
+  /**
+   * 開いてよいホストの一覧。null のときは制限しない。
+   * 何も指定しなければ、自分のコンピューターで動くサーバー (LOOPBACK_HOSTS) だけになる。
+   */
   allowedHosts: string[] | null;
   /**
    * ページの中の iframe が読み込んでよいホスト。空のときは、iframe の読み込みをすべて止める。
@@ -16,6 +19,15 @@ export interface Settings {
   fileRoot: string | null;
   /** file: の URL を受け付けるか */
   allowFile: boolean;
+}
+
+/** 既定で開いてよいホスト。開発サーバーの検査は、設定なしでできるようにする。 */
+export const LOOPBACK_HOSTS = ["localhost", "*.localhost", "127.0.0.1", "[::1]"];
+
+/** ホストの一覧を解釈する。* が含まれていれば、すべてのホストを許可する。 */
+function hostList(hosts: string[]): string[] | null {
+  if (hosts.length === 0) return [...LOOPBACK_HOSTS];
+  return hosts.includes("*") ? null : hosts;
 }
 
 function splitList(value: string | undefined): string[] {
@@ -37,7 +49,7 @@ function fromEnvironment(env: NodeJS.ProcessEnv): Settings {
   const hosts = splitList(env.KIKORI_ALLOWED_HOSTS);
   return {
     lang: detectLang(env),
-    allowedHosts: hosts.length > 0 ? hosts : null,
+    allowedHosts: hostList(hosts),
     allowedFrameHosts: splitList(env.KIKORI_ALLOWED_FRAME_HOSTS),
     fileRoot: env.KIKORI_FILE_ROOT ?? null,
     allowFile: env.KIKORI_NO_FILE !== "1",
@@ -59,7 +71,8 @@ const USAGE_JA = `使い方: kikori [オプション]
   --lang <ja|en>          検査結果やエラーの文面に使う言語。
                           指定しないときは、環境の言語設定が日本語なら ja、それ以外は en。
   --allow-host <ホスト>   開いてよいホスト。複数回の指定と、カンマ区切りができる。
-                          指定すると、一覧にないホストは開かない。
+                          指定しないときは、localhost と 127.0.0.1 だけを開く。
+                          * を指定すると、すべてのホストを開く。
                           例: localhost:3000  example.com  *.example.com
   --allow-frame-host <ホスト>
                           ページの中の iframe が読み込んでよいホスト。書き方は --allow-host と同じ。
@@ -78,7 +91,8 @@ const USAGE_EN = `Usage: kikori [options]
   --lang <ja|en>          Language for results and errors.
                           Defaults to ja when the system locale is Japanese, otherwise en.
   --allow-host <host>     Host that may be opened. Repeatable, or comma-separated.
-                          When given, hosts outside the list are refused.
+                          When omitted, only localhost and 127.0.0.1 may be opened.
+                          "*" allows every host.
                           Examples: localhost:3000  example.com  *.example.com
   --allow-frame-host <host>
                           Host that iframes in the page may load. Same syntax as --allow-host.
@@ -142,11 +156,11 @@ export function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env):
         throw new Error(say(settings.lang, `知らないオプションです: ${arg}`, `Unknown option: ${arg}`));
     }
   }
-  if (hosts.length > 0) settings.allowedHosts = hosts;
+  if (hosts.length > 0) settings.allowedHosts = hostList(hosts);
   if (frameHosts.length > 0) settings.allowedFrameHosts = frameHosts;
   const HOST = /^(\*\.)?[a-z0-9.-]+(:\d+)?$|^\[[0-9a-f:]+\](:\d+)?$/;
   for (const pattern of settings.allowedHosts ?? []) {
-    if (!HOST.test(pattern)) {
+    if (!HOST.test(pattern) && !LOOPBACK_HOSTS.includes(pattern)) {
       throw new Error(
         say(
           settings.lang,

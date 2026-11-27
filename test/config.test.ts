@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import { after, before, test } from "node:test";
 import { assertAllowedUrl, withPage } from "../src/browser.js";
 import { checkReflow } from "../src/checks/reflow.js";
-import { configure, getSettings, isHostAllowed, parseArgs, type Settings } from "../src/config.js";
+import { configure, getSettings, isHostAllowed, LOOPBACK_HOSTS, parseArgs, type Settings } from "../src/config.js";
 
 const settings = (hosts: string[] | null, frames: string[] = []): Settings => ({ lang: "ja", allowedHosts: hosts, allowedFrameHosts: frames, fileRoot: null, allowFile: true });
 const original = getSettings();
@@ -58,7 +58,10 @@ test("起動時の引数: ホストの一覧、file: の範囲、無効化を読
     fileRoot: "/srv/site",
     allowFile: false,
   });
-  assert.deepEqual(parseArgs([], {}).settings, { lang: "en", allowedHosts: null, allowedFrameHosts: [], fileRoot: null, allowFile: true });
+  assert.deepEqual(parseArgs([], {}).settings, { lang: "en", allowedHosts: LOOPBACK_HOSTS, allowedFrameHosts: [], fileRoot: null, allowFile: true });
+  // * を指定したときだけ、すべてのホストを開く。
+  assert.equal(parseArgs(["--allow-host", "*"], {}).settings.allowedHosts, null);
+  assert.equal(parseArgs([], { KIKORI_ALLOWED_HOSTS: "*" }).settings.allowedHosts, null);
   assert.deepEqual(parseArgs(["--allow-frame-host", "*"], {}).settings.allowedFrameHosts, ["*"]);
   assert.equal(parseArgs(["--help"], {}).help, true);
 });
@@ -99,6 +102,17 @@ test("ホストの照合: ポート、ワイルドカード、IPv6 を扱う", (
   assert.equal(allowed("https://example.com.evil.test/", ["example.com"]), false);
   assert.equal(allowed("http://[::1]:8080/", ["[::1]:8080"]), true);
   assert.equal(allowed("http://169.254.169.254/", ["localhost"]), false);
+});
+
+test("宛先の制限: 何も指定しなければ、自分のコンピューターのサーバーだけを開く", async () => {
+  configure(parseArgs([], { KIKORI_LANG: "ja" }).settings);
+  const ok = await checkReflow({ url: `http://127.0.0.1:${port}/page` });
+  assert.equal(ok.check, "reflow");
+  assert.equal(assertAllowedUrl("http://localhost:3000/").hostname, "localhost");
+  assert.equal(assertAllowedUrl("http://app.localhost:5173/").hostname, "app.localhost");
+  assert.throws(() => assertAllowedUrl("https://example.com/"), /開いてよいホストに含まれていません/);
+  assert.throws(() => assertAllowedUrl("http://192.168.0.1/"), /開いてよいホスト/);
+  assert.throws(() => assertAllowedUrl("http://localhost.example.com/"), /開いてよいホスト/);
 });
 
 test("宛先の制限: 許可したホストは検査でき、ほかのホストは開かない", async () => {
