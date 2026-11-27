@@ -238,6 +238,23 @@ export async function withPage<T>(options: PageOptions, run: (page: Page) => Pro
       }
     };
     page.on("framenavigated", (frame) => watch(frame.url(), frame.parentFrame() !== null));
+    // 読み込みの転送も、送る前の確認を通らない。許可したホストが一覧にないホストへ転送したら、
+    // その中身が画面に写っているおそれがあるので、結果を返さない。
+    page.on("request", (request) => {
+      if (request.redirectedFrom() === null || request.isNavigationRequest()) return;
+      let target: URL;
+      try {
+        target = new URL(request.url());
+      } catch {
+        return;
+      }
+      if (!resourceAllowed(target)) {
+        violation ??= tr(
+          `読み込みが、開いてよいホストに含まれない ${target.host} へ転送されました。読み込ませるには、起動時のオプション --allow-host で指定してください。`,
+          `A load was redirected to ${target.host}, which is not among the allowed hosts. To let it load, start the server with --allow-host.`,
+        );
+      }
+    });
     const assertStayed = (): void => {
       watch(page.url(), false);
       if (violation) throw new Error(violation);

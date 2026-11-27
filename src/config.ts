@@ -207,7 +207,7 @@ export function isFrameHostAllowed(url: URL, top: URL, settings: Settings = curr
 
 function matchesAny(url: URL, patterns: string[]): boolean {
   const hostname = url.hostname.toLowerCase();
-  const port = url.port || (url.protocol === "https:" ? "443" : "80");
+  const port = url.port || (url.protocol === "https:" || url.protocol === "wss:" ? "443" : "80");
   return patterns.some((pattern) => {
     // IPv6 のアドレスは [::1] のように角括弧で囲んで書く。URL の hostname も同じ形になる。
     const match = /^(\[[^\]]+\]|[^:]+)(?::(\d+))?$/.exec(pattern);

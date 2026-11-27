@@ -26,6 +26,15 @@ before(async () => {
       res.end(Buffer.from("R0lGODlhAQABAAAAACwAAAAAAQABAAA=", "base64"));
       return;
     }
+    if (req.url === "/redirect-pixel") {
+      res.writeHead(302, { location: `http://localhost:${port}/pixel` }).end();
+      return;
+    }
+    if (req.url === "/with-redirected-image") {
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      res.end(`<!doctype html><html lang="ja"><title>転送される画像</title><body><h1>転送される画像</h1><img alt="転送" src="/redirect-pixel"></body></html>`);
+      return;
+    }
     if (req.url === "/with-image") {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       res.end(`<!doctype html><html lang="ja"><title>画像のあるページ</title><body><h1>画像のあるページ</h1>
@@ -116,6 +125,10 @@ test("ホストの照合: ポート、ワイルドカード、IPv6 を扱う", (
   assert.equal(allowed("https://example.com.evil.test/", ["example.com"]), false);
   assert.equal(allowed("http://[::1]:8080/", ["[::1]:8080"]), true);
   assert.equal(allowed("http://169.254.169.254/", ["localhost"]), false);
+  // ポートを省いた wss: は 443、ws: は 80 として照合する。
+  assert.equal(allowed("wss://example.com/socket", ["example.com:443"]), true);
+  assert.equal(allowed("wss://example.com/socket", ["example.com:80"]), false);
+  assert.equal(allowed("ws://example.com/socket", ["example.com:80"]), true);
 });
 
 test("宛先の制限: 何も指定しなければ、自分のコンピューターのサーバーだけを開く", async () => {
@@ -159,6 +172,13 @@ test("読み込み: 画像などの読み込みも、開いてよいホストの
   const allowed = await checkReflow({ url: `http://127.0.0.1:${port}/with-image` });
   assert.deepEqual(pixelHits.sort(), [`127.0.0.1:${port}`, `localhost:${port}`]);
   assert.equal(allowed.notes, undefined);
+});
+
+test("読み込み: 許可したホストが一覧にないホストへ転送したら、結果を返さない", async () => {
+  configure(settings([`127.0.0.1:${port}`]));
+  await assert.rejects(checkReflow({ url: `http://127.0.0.1:${port}/with-redirected-image` }), /へ転送されました/);
+  configure(settings([`127.0.0.1:${port}`, `localhost:${port}`]));
+  assert.equal((await checkReflow({ url: `http://127.0.0.1:${port}/with-redirected-image` })).check, "reflow");
 });
 
 /** それぞれの iframe の中身が読み込まれたかを調べる。 */
