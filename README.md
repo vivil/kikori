@@ -94,15 +94,18 @@ Whether a text alternative matches the image, or whether a heading describes wha
 
 | Success criterion | Material |
 |---|---|
-| 1.1.1 Non-text Content | Images with their text alternatives |
+| 1.1.1 Non-text Content | Images, including `canvas` and `svg`, with their names and whether assistive technology ignores them |
 | 1.3.2 Meaningful Sequence | Text in HTML order, and places where it differs from the visual order |
 | 1.3.3 Sensory Characteristics | Candidate sentences that mention shape, color, position or sound |
-| 1.4.5 Images of Text | Images and background images |
+| 1.4.5 / 1.4.9 Images of Text | Images and background images |
 | 1.4.11 Non-text Contrast | Number of icons. Field boundaries are measured by `check_interaction` |
 | 2.3.1 Three Flashes or Below Threshold | Videos, GIFs and canvases |
-| 2.4.4 Link Purpose (In Context) | Link text, with surrounding context for links whose text alone is unclear |
+| 2.4.2 Page Titled | The title, the first headings and a sample of the text |
+| 2.4.4 / 2.4.9 Link Purpose | Link text, with surrounding context for links whose text alone is unclear |
 | 2.4.6 Headings and Labels | Headings and labels |
 | 2.5.1 / 2.5.2 | Draggable elements. Used on pages where a framework receives events in one place |
+| 3.1.1 / 3.1.2 Language | The `lang` attributes and the text they apply to |
+| 3.3.1 Error Identification | Fields marked invalid and the messages attached to them |
 | 4.1.3 Status Messages | Live regions and forms |
 
 ## Auditing several pages with audit_site

@@ -97,3 +97,25 @@ test("監査: 判断で不適合にでき、自動検査の不適合は判断で
   assert.equal(row?.status, "fail");
   assert.match(row?.note ?? "", /反映していません/);
 });
+
+test("判断材料: canvas や svg の画像、支援技術から隠された画像、タイトル、言語、エラーの文言を返す", async () => {
+  const result = await collectEvidence({ url: fixture("evidence-more.html"), screenshot: false });
+  const item = (id: string) => result.items.find((i) => i.id === id);
+
+  const images = item("1.1.1")?.evidence.images as { selector: string; tag: string; name: string | null; ignoredByAssistiveTech: boolean }[];
+  const image = (selector: string) => images.find((i) => i.selector === selector);
+  assert.equal(image("#drawn")?.tag, "canvas");
+  assert.equal(image("#drawn")?.name, "会社のロゴ");
+  assert.equal(image("#titled")?.name, "星の印");
+  assert.equal(image("#hidden-photo")?.ignoredByAssistiveTech, true);
+  assert.equal(image("#drawn")?.ignoredByAssistiveTech, false);
+
+  assert.equal(item("2.4.2")?.evidence.title, "りんごの収穫時期");
+  assert.equal(item("3.1.1")?.evidence.lang, "en");
+  assert.match(String(item("3.1.1")?.evidence.textSample), /日本語で書かれています/);
+  assert.deepEqual((item("3.1.2")?.evidence.parts as { selector: string; lang: string }[]).map((p) => [p.selector, p.lang]), [["#french", "fr"]]);
+  const message = (item("3.3.1")?.evidence.messages as { selector: string; label: string; message: string }[]).find((m) => m.selector === "#age");
+  assert.equal(message?.label, "年齢");
+  assert.equal(message?.message, "入力に誤りがあります。");
+  assert.ok(item("2.4.9")?.question);
+});

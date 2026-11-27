@@ -55,6 +55,10 @@ function guides(): Record<string, { question: string; failWhen: string }> {
       question: tr("スクリーンショットを見て、文章を画像にしている箇所はありませんか。", "Looking at the screenshot, is any text presented as an image?"),
       failWhen: tr("ロゴ以外で、文字として書ける内容を画像で表示している。", "Content that could be written as text is shown as an image, other than a logo."),
     },
+    "1.4.9": {
+      question: tr("スクリーンショットを見て、文章を画像にしている箇所はありませんか。ロゴは除きます。", "Looking at the screenshot, is any text presented as an image, other than a logo?"),
+      failWhen: tr("装飾でもロゴでもないのに、文字として書ける内容を画像で表示している。", "Content that could be written as text is shown as an image, and it is neither decoration nor a logo."),
+    },
     "1.4.11": {
       question: tr("スクリーンショットを見て、アイコン、入力欄の境界、グラフなどは、隣り合う色と 3:1 以上の差がありますか。", "Looking at the screenshot, do icons, field boundaries, charts and similar have at least 3:1 contrast against adjacent colors?"),
       failWhen: tr("内容の理解や操作に必要な図やアイコン、部品の境界が、背景に溶け込んで見分けにくい。", "A graphic, icon or component boundary needed to understand or operate the content blends into the background."),
@@ -62,6 +66,10 @@ function guides(): Record<string, { question: string; failWhen: string }> {
     "2.3.1": {
       question: tr("動画、GIF、canvas の中に、1 秒に 3 回を超えて明滅する内容はありませんか。", "Does any video, GIF or canvas flash more than three times in one second?"),
       failWhen: tr("広い範囲が 1 秒に 3 回を超えて明滅する。", "A large area flashes more than three times in one second."),
+    },
+    "2.4.2": {
+      question: tr("ページのタイトルは、そのページの主題や目的を表していますか。", "Does the page title describe the topic or purpose of the page?"),
+      failWhen: tr("タイトルが本文の内容と食い違っている、または何のページか分からない。", "The title contradicts the content of the page, or does not tell what the page is about."),
     },
     "2.4.4": {
       question: tr("それぞれのリンクは、リンクの文言と前後の文脈から行き先が分かりますか。", "Can the destination of each link be determined from its text together with its context?"),
@@ -71,6 +79,10 @@ function guides(): Record<string, { question: string; failWhen: string }> {
       question: tr("見出しとラベルは、続く内容や入力欄の目的を表していますか。", "Do headings and labels describe the content that follows or the purpose of the field?"),
       failWhen: tr("見出しやラベルが内容と合っていない、または何を指すのか分からない。", "A heading or label does not match the content, or it is unclear what it refers to."),
     },
+    "2.4.9": {
+      question: tr("それぞれのリンクは、リンクの文言だけで行き先が分かりますか。", "Can the destination of each link be determined from its text alone?"),
+      failWhen: tr("リンクの文言だけでは行き先が分からない。前後の文脈は考慮しない。", "The destination cannot be determined from the link text alone. Surrounding context does not count."),
+    },
     "2.5.1": {
       question: tr("スワイプやピンチのように、軌跡や複数の指を使う操作はありますか。ある場合、1 回のタップなどでも同じ操作ができますか。", "Is there any path-based or multipoint gesture, such as swipe or pinch? If so, can the same thing be done with a single tap or similar?"),
       failWhen: tr("軌跡や複数の指による操作でしか使えない機能がある。", "A function can only be operated with a path-based or multipoint gesture."),
@@ -78,6 +90,18 @@ function guides(): Record<string, { question: string; failWhen: string }> {
     "2.5.2": {
       question: tr("ボタンなどを押した時点 (離す前) で機能を実行している箇所はありますか。", "Does anything run its function on the down event, before the pointer is released?"),
       failWhen: tr("押した時点で実行され、取り消す手段がない。", "It runs on the down event and cannot be cancelled."),
+    },
+    "3.1.1": {
+      question: tr("html 要素の lang 属性は、ページの本文で主に使われている言語と合っていますか。", "Does the lang attribute of the html element match the main language of the page content?"),
+      failWhen: tr("lang 属性の言語と、本文の主な言語が違う。", "The language in the lang attribute differs from the main language of the content."),
+    },
+    "3.1.2": {
+      question: tr("lang 属性の付いた部分は、その部分の文章の言語と合っていますか。", "Does each part with a lang attribute match the language of its text?"),
+      failWhen: tr("lang 属性の言語と、その部分の文章の言語が違う。", "The language in the lang attribute differs from the language of that part's text."),
+    },
+    "3.3.1": {
+      question: tr("入力の誤りを知らせるメッセージは、どの欄の何が誤りなのかを文章で伝えていますか。", "Do the error messages say in text which field is wrong and what is wrong with it?"),
+      failWhen: tr("誤りのある欄が特定されていない、または何が誤りなのかが分からない。", "The field in error is not identified, or it is unclear what the error is."),
     },
     "4.1.3": {
       question: tr("操作の結果を知らせるメッセージ (送信の完了、検索結果の件数、エラーなど) は、フォーカスを移さなくても支援技術に伝わりますか。", "Are messages about the result of an action (submission complete, number of results, errors) conveyed to assistive technology without moving focus?"),
@@ -87,7 +111,7 @@ function guides(): Record<string, { question: string; failWhen: string }> {
 }
 
 /** 判断材料を用意できる達成基準 */
-export const JUDGEABLE = ["1.1.1", "1.3.2", "1.3.3", "1.4.5", "1.4.11", "2.3.1", "2.4.4", "2.4.6", "2.5.1", "2.5.2", "4.1.3"];
+export const JUDGEABLE = ["1.1.1", "1.3.2", "1.3.3", "1.4.5", "1.4.9", "1.4.11", "2.3.1", "2.4.2", "2.4.4", "2.4.6", "2.4.9", "2.5.1", "2.5.2", "3.1.1", "3.1.2", "3.3.1", "4.1.3"];
 
 /** 自動検査の結果にかかわらず、内容を見た判断が必ず要る達成基準。ほかは検査の結果に応じて判断待ちになる。 */
 export const ALWAYS_JUDGED = ["1.1.1", "1.3.2", "1.3.3", "1.4.5", "2.4.4", "2.4.6"];
@@ -105,6 +129,12 @@ export async function collectEvidence(options: EvidenceOptions): Promise<Evidenc
       "1.3.2": { blocks: raw.blocks, visualOrderMismatches: raw.orderMismatches },
       "1.3.3": { candidates: raw.sensory },
       "1.4.5": { images: raw.images, backgroundImages: raw.backgroundImages },
+      "1.4.9": { images: raw.images, backgroundImages: raw.backgroundImages },
+      "2.4.2": { title: raw.title, headings: raw.headings.slice(0, 5), textSample: raw.textSample },
+      "2.4.9": { links: raw.links },
+      "3.1.1": { lang: raw.pageLanguage, textSample: raw.textSample },
+      "3.1.2": { pageLang: raw.pageLanguage, parts: raw.languageParts },
+      "3.3.1": { messages: raw.errorMessages, labels: raw.labels },
       "1.4.11": { note: tr("check_interaction が入力欄の境界のコントラストを測っています。ここではアイコンや図をスクリーンショットで確認してください。", "check_interaction measures the contrast of field boundaries. Use the screenshot here to check icons and graphics."), iconCount: raw.iconCount },
       "2.3.1": { media: raw.media },
       "2.4.4": { links: raw.links },
@@ -186,18 +216,33 @@ function collectRaw(language: "ja" | "en") {
   const visible = <T extends Element>(selector: string, max: number): T[] =>
     Array.from(document.querySelectorAll<T>(selector)).filter((el) => kikori.isVisible(el)).slice(0, max);
 
-  const images = visible<HTMLElement>("img, svg[role='img'], [role='img'], input[type='image'], area", 40).map((el) => {
-    const rect = el.getBoundingClientRect();
-    const src = el.getAttribute("src") ?? "";
-    return {
-      selector: kikori.selector(el),
-      alt: el.hasAttribute("alt") ? el.getAttribute("alt") : null,
-      ariaLabel: el.getAttribute("aria-label"),
-      file: src.startsWith("data:") ? "(data URL)" : (src.split("/").pop() ?? "").split("?")[0],
-      size: `${Math.round(rect.width)}x${Math.round(rect.height)}`,
-      linkOrButton: clean(el.closest("a, button")?.textContent, 40) || (el.closest("a, button") ? (language === "ja" ? "(文字なし)" : "(no text)") : null),
-    };
-  });
+  // ほかの svg の中にある svg は、外側のものだけを数える。
+  const images = visible<HTMLElement>("img, svg, canvas, [role='img'], input[type='image'], area, object, embed", 60)
+    .filter((el) => el.parentElement?.closest("svg") == null)
+    .slice(0, 40)
+    .map((el) => {
+      const rect = el.getBoundingClientRect();
+      const src = el.getAttribute("src") ?? el.getAttribute("data") ?? "";
+      const labelledBy = (el.getAttribute("aria-labelledby") ?? "")
+        .split(/\s+/)
+        .map((id) => document.getElementById(id)?.textContent ?? "")
+        .join(" ");
+      // 支援技術に伝わる名前の、おおよその見積もり。優先順位は、参照先、aria-label、alt、svg の title、title 属性。
+      const name = clean(labelledBy) || clean(el.getAttribute("aria-label")) || clean(el.getAttribute("alt")) || clean(el.querySelector(":scope > title")?.textContent) || clean(el.getAttribute("title"));
+      const role = el.getAttribute("role");
+      return {
+        selector: kikori.selector(el),
+        tag: el.tagName.toLowerCase(),
+        name: name || null,
+        alt: el.hasAttribute("alt") ? el.getAttribute("alt") : null,
+        ariaLabel: el.getAttribute("aria-label"),
+        // 支援技術から隠されている画像は、装飾として扱われる。名前があっても読み上げられない。
+        ignoredByAssistiveTech: el.closest("[aria-hidden='true']") !== null || role === "presentation" || role === "none" || el.getAttribute("alt") === "",
+        file: src.startsWith("data:") ? "(data URL)" : (src.split("/").pop() ?? "").split("?")[0],
+        size: `${Math.round(rect.width)}x${Math.round(rect.height)}`,
+        linkOrButton: clean(el.closest("a, button")?.textContent, 40) || (el.closest("a, button") ? (language === "ja" ? "(文字なし)" : "(no text)") : null),
+      };
+    });
 
   const backgroundImages = visible<HTMLElement>("body *", 3000)
     .filter((el) => /url\(/.test(getComputedStyle(el).backgroundImage))
@@ -280,5 +325,23 @@ function collectRaw(language: "ja" | "en") {
     draggable: Array.from(document.querySelectorAll("[draggable='true'], input[type='range'], [role='slider']")).slice(0, 20).map((el) => kikori.selector(el)),
     liveRegions: Array.from(document.querySelectorAll(LIVE)).slice(0, 20).map((el) => ({ selector: kikori.selector(el), role: el.getAttribute("role"), ariaLive: el.getAttribute("aria-live") })),
     forms: Array.from(document.querySelectorAll("form")).slice(0, 10).map((form) => ({ selector: kikori.selector(form), fields: form.querySelectorAll("input, select, textarea").length })),
+    title: document.title,
+    pageLanguage: document.documentElement.getAttribute("lang"),
+    textSample: clean(document.body.innerText, 400),
+    languageParts: Array.from(document.body.querySelectorAll<HTMLElement>("[lang]"))
+      .filter((el) => kikori.isVisible(el))
+      .slice(0, 20)
+      .map((el) => ({ selector: kikori.selector(el), lang: el.getAttribute("lang"), text: clean(el.innerText, 160) })),
+    errorMessages: Array.from(document.querySelectorAll<HTMLElement>("[aria-invalid='true'], [role='alert'], [aria-errormessage], [class*='error' i], [id*='error' i]"))
+      .filter((el) => kikori.isVisible(el))
+      .slice(0, 20)
+      .map((el) => {
+        const described = (el.getAttribute("aria-describedby") ?? el.getAttribute("aria-errormessage") ?? "")
+          .split(/\s+/)
+          .map((id) => document.getElementById(id)?.textContent ?? "")
+          .join(" ");
+        const field = el as HTMLInputElement;
+        return { selector: kikori.selector(el), tag: el.tagName.toLowerCase(), label: clean(field.labels?.[0]?.innerText), value: typeof field.value === "string" ? field.value.slice(0, 60) : null, message: clean(described) || clean(el.innerText, 160) };
+      }),
   };
 }
