@@ -33,7 +33,8 @@ before(async () => {
       // チェックを切り替えると、GET の通信で設定を書き換える作りのページ。
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       res.end(`<!doctype html><html lang="ja"><title>設定</title><body><h1>設定</h1>
-        <label><input id="notify" type="checkbox" onchange="fetch('/toggle')"> 通知を受け取る</label></body></html>`);
+        <label><input id="notify" type="checkbox" onchange="fetch('/toggle')"> 通知を受け取る</label>
+        <label><input id="beacon" type="checkbox" onchange="new Image().src = '/toggle'; navigator.sendBeacon('/toggle')"> 画像と送信用の API で切り替える</label></body></html>`);
       return;
     }
     if (req.url === "/members") {
@@ -333,12 +334,13 @@ test("ログイン済みの状態: 操作を試す間は、スクリプトから
   configure(settings([`127.0.0.1:${port}`]));
   toggleHits = 0;
   await checkInteraction({ url });
-  assert.ok(toggleHits >= 1);
+  assert.ok(toggleHits >= 2);
 
   configure({ ...settings([`127.0.0.1:${port}`]), storageState: file });
   toggleHits = 0;
-  await checkInteraction({ url });
+  const frozen = await checkInteraction({ url });
   assert.equal(toggleHits, 0);
+  assert.match(frozen.notes?.join("\n") ?? "", /通信をすべて止めました/);
 });
 
 test("ログイン済みの状態: ファイルを読めないときは、起動時に知らせる", () => {

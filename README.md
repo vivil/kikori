@@ -234,7 +234,7 @@ Keep the following in mind.
 - The file holds session cookies. Treat it like a password and keep it out of version control.
 - Use a test account. Results contain the text and screenshots of what that account can see, and they are handed to the model.
 - Only cookies and local storage that belong to a host listed in `--allow-host` are loaded. The rest of the file is ignored.
-- The session can be used to act as that account. While `check_interaction` tries key presses, hover and input changes with a login state loaded, it also blocks requests made by scripts (fetch and XHR), in addition to navigation and non-GET requests.
+- The session can be used to act as that account. While `check_interaction` tries key presses, hover and input changes with a login state loaded, it blocks every request and closes open WebSockets, so nothing can be triggered with the account's rights. Hover content that is fetched over the network is not detected in that mode.
 - A site that changes state when a page is merely loaded with GET can still be affected.
 - kikori reads the file and never updates it. When the session expires, pages redirect to the login screen again; create the file anew.
 

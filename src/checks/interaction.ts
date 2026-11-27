@@ -1,6 +1,6 @@
 import { tr } from "../i18n.js";
 import type { Page } from "playwright";
-import { withPage } from "../browser.js";
+import { freezeNetwork, withPage } from "../browser.js";
 import { getSettings } from "../config.js";
 import { SC, summarize, type CheckResult, type Finding } from "../types.js";
 import type { ElementInfo } from "../helpers.js";
@@ -45,8 +45,6 @@ export async function checkInteraction(options: InteractionOptions): Promise<Che
     const inapplicable: string[] = [];
     const needsJudgment: string[] = [];
 
-    /** 操作を試している最中か。ログイン済みの状態を読み込んでいるときだけ、通信の制限を強める。 */
-    let probing = false;
     const navigations: { url: string; method: string }[] = [];
     let popups = 0;
     page.on("popup", (popup) => {
@@ -60,9 +58,6 @@ export async function checkInteraction(options: InteractionOptions): Promise<Che
         return route.abort();
       }
       if (request.method() !== "GET" && request.method() !== "HEAD") return route.abort();
-      // ログイン済みの状態で操作を試す間は、GET であってもスクリプトからの通信を止める。
-      // 本人の権限で、設定の切り替えなどが実行されるのを防ぐ。
-      if (probing && ["xhr", "fetch", "eventsource", "websocket"].includes(request.resourceType())) return route.abort();
       // 起動時に決めた宛先の制限へ処理を引き継ぐ。
       return route.fallback();
     });
@@ -167,7 +162,17 @@ export async function checkInteraction(options: InteractionOptions): Promise<Che
     }
 
     // --- 2.1.4: 文字キーだけで動くショートカットがないか ---
-    probing = getSettings().storageState !== null;
+    // ログイン済みの状態で操作を試す間は、通信をすべて止める。画像の読み込みや送信用の API を使っても、
+    // 本人の権限で設定の切り替えなどを実行できないようにする。
+    if (getSettings().storageState !== null) {
+      freezeNetwork(page);
+      notes.push(
+        tr(
+          "ログイン済みの状態を読み込んでいるため、操作を試す間は通信をすべて止めました。ホバーで現れる内容のうち、通信して取得するものは検出できていません。",
+          "A login state is loaded, so all requests were blocked while trying interactions. Hover content that is fetched over the network was not detected.",
+        ),
+      );
+    }
     const reacted = await probeCharacterKeys(page, navigations);
     if (reacted.length > 0) {
       findings.push({
