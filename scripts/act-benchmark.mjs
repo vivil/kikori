@@ -23,6 +23,8 @@ const cache = path.resolve(option("--cache", ".act-cache"));
 const out = path.resolve(option("--out", "docs"));
 const onlyRule = option("--rule", null);
 const jobs = Number(option("--jobs", "4"));
+// Judgments a model made from kikori's evidence without seeing the expected outcomes.
+const judgments = JSON.parse(readFileSync(new URL("../docs/act-judgments.json", import.meta.url), "utf8")).rules;
 
 if (args.includes("--report-only")) {
   const existing = JSON.parse(readFileSync(path.join(out, "act-results.json"), "utf8"));
@@ -163,6 +165,7 @@ for (const testcase of cases) {
       criteria,
       coveredByAxe: axeRulesFor.has(testcase.ruleId),
       coveredByKikori: axeRulesFor.has(testcase.ruleId) || testcase.ruleId in OWN,
+      judged: testcase.ruleId in judgments,
       cases: [],
     });
   }
@@ -177,13 +180,21 @@ async function worker() {
     // A tool that has nothing for a rule reports nothing for its test cases.
     const a = rule.coveredByAxe ? await attempt(() => axeAlone(url, rule.id)) : { outcome: "passed" };
     const k = rule.coveredByKikori ? await attempt(() => kikori(url, rule.id, testcase)) : { outcome: "passed" };
-    rule.cases.push({ id: testcase.testcaseId, title: testcase.testcaseTitle, expected: testcase.expected, axe: a.outcome, kikori: k.outcome, ...(a.error ? { axeError: a.error } : {}), ...(k.error ? { kikoriError: k.error } : {}) });
+    rule.cases.push({ id: testcase.testcaseId, title: testcase.testcaseTitle, expected: testcase.expected, axe: a.outcome, kikori: k.outcome, judged: withJudgment(k.outcome, judgments[rule.id]?.[testcase.testcaseId]), ...(a.error ? { axeError: a.error } : {}), ...(k.error ? { kikoriError: k.error } : {}) });
     if (++done % 50 === 0) console.error(`${done} / ${done + queue.length}`);
   }
 }
 await Promise.all(Array.from({ length: jobs }, worker));
 await browser.close();
 server.close();
+
+/** kikori's outcome after the model's judgment: a judged failure is a failure, and doubt asks for review. */
+function withJudgment(outcome, judgment) {
+  if (outcome === "failed" || outcome === "error") return outcome;
+  if (judgment === "fail") return "failed";
+  if (judgment === "review") return "cantTell";
+  return outcome;
+}
 
 /**
  * found: the rule expects "failed" and the tool reports a failure.
@@ -208,7 +219,7 @@ function tally(list, tool) {
 }
 
 const perRule = [...rules.values()]
-  .map((rule) => ({ ...rule, axe: tally(rule.cases, "axe"), kikori: tally(rule.cases, "kikori") }))
+  .map((rule) => ({ ...rule, axe: tally(rule.cases, "axe"), kikori: tally(rule.cases, "kikori"), withJudgment: tally(rule.cases, "judged") }))
   .sort((a, b) => a.criteria[0].localeCompare(b.criteria[0], undefined, { numeric: true }) || a.id.localeCompare(b.id));
 const all = perRule.flatMap((r) => r.cases);
 const summary = {
@@ -219,7 +230,7 @@ const summary = {
   testcasesInSource: index.testcases.length,
   testcases: all.length,
   skipped,
-  overall: { axe: tally(all, "axe"), kikori: tally(all, "kikori") },
+  overall: { axe: tally(all, "axe"), kikori: tally(all, "kikori"), withJudgment: tally(all, "judged") },
   rules: perRule,
 };
 
@@ -233,10 +244,13 @@ function report(data) {
   const pct = (value) => (value === null ? "n/a" : `${(value * 100).toFixed(1)}%`);
   const a = data.overall.axe;
   const k = data.overall.kikori;
+  const j = data.overall.withJudgment;
+  const judgedRules = data.rules.filter((r) => r.judged);
+  const judgedCases = judgedRules.reduce((sum, r) => sum + r.cases.length, 0);
   const covered = (key) => data.rules.filter((r) => r[key]).length;
   const rows = data.rules.map((r) => {
     const cell = (t, has) => (has ? `${t.found} / ${t.flagged} / ${t.falseAlarm}` : "-");
-    return `| [${r.name.replaceAll("|", "/")}](https://www.w3.org/WAI/standards-guidelines/act/rules/${r.id}/) | ${r.criteria.join(", ")} | ${r.axe.expectedFailures} | ${cell(r.axe, r.coveredByAxe)} | ${cell(r.kikori, r.coveredByKikori)} |`;
+    return `| [${r.name.replaceAll("|", "/")}](https://www.w3.org/WAI/standards-guidelines/act/rules/${r.id}/) | ${r.criteria.join(", ")} | ${r.axe.expectedFailures} | ${cell(r.axe, r.coveredByAxe)} | ${cell(r.kikori, r.coveredByKikori)} | ${cell(r.withJudgment, r.coveredByKikori || r.judged)} |`;
   });
   return `# ACT Rules benchmark
 
@@ -250,19 +264,30 @@ How axe-core on its own and kikori compare with the expected outcomes of the [W3
 
 ${data.testcases} test cases from ${data.rules.length} rules, of which ${a.expectedFailures} are expected to fail.
 
-| | axe-core alone | kikori |
-|---|---|---|
-| Rules with a matching check | ${covered("coveredByAxe")} | ${covered("coveredByKikori")} |
-| Expected failures reported as failures | ${a.found} | ${k.found} |
-| Expected failures only flagged for review | ${a.flagged} | ${k.flagged} |
-| Expected failures missed | ${a.missed} | ${k.missed} |
-| False alarms | ${a.falseAlarm} | ${k.falseAlarm} |
-| Precision | ${pct(a.precision)} | ${pct(k.precision)} |
-| Recall | ${pct(a.recall)} | ${pct(k.recall)} |
-| Recall counting review flags | ${pct(a.surfaced)} | ${pct(k.surfaced)} |
-| Test cases that could not be run | ${a.error} | ${k.error} |
+| | axe-core alone | kikori, automatic checks | kikori with a model's judgment |
+|---|---|---|---|
+| Rules covered | ${covered("coveredByAxe")} | ${covered("coveredByKikori")} | ${data.rules.filter((r) => r.coveredByKikori || r.judged).length} |
+| Expected failures reported as failures | ${a.found} | ${k.found} | ${j.found} |
+| Expected failures only flagged for review | ${a.flagged} | ${k.flagged} | ${j.flagged} |
+| Expected failures missed | ${a.missed} | ${k.missed} | ${j.missed} |
+| False alarms | ${a.falseAlarm} | ${k.falseAlarm} | ${j.falseAlarm} |
+| Precision | ${pct(a.precision)} | ${pct(k.precision)} | ${pct(j.precision)} |
+| Recall | ${pct(a.recall)} | ${pct(k.recall)} | ${pct(j.recall)} |
+| Recall counting review flags | ${pct(a.surfaced)} | ${pct(k.surfaced)} | ${pct(j.surfaced)} |
+| Test cases that could not be run | ${a.error} | ${k.error} | ${j.error} |
 
-The rules that neither tool covers mostly need a judgment about meaning, such as whether a text alternative, a link text or a heading is descriptive, or whether a video has captions. kikori leaves those to \`collect_evidence\` and the calling model, which this benchmark does not exercise.
+The first two columns are fully automatic and anyone can reproduce them. The third adds the step kikori is designed around: the calling model judges the criteria that need a judgment about meaning, from the evidence kikori collects.
+
+### How the third column was produced
+
+- Claude was the judging model, run as a separate agent. It judged ${judgedCases} test cases from ${judgedRules.length} rules. It was given only what \`collect_evidence\` returns, including its instructions, and screenshots where the criterion is visual.
+- The expected outcomes were hidden. The page titles, which give them away, were masked, and the cases were ordered by test case id.
+- The judgment follows kikori's rules: a failing judgment has to point to the evidence it relies on, and the model answers unsure when the material is not enough. An unsure answer counts as flagged for review, not as a failure.
+- The judgments are in [act-judgments.json](act-judgments.json), and \`scripts/act-judge-sheet.mjs\` prepares the same material for another model or a person.
+- A model's judgment is not reproducible in the way the automatic columns are. Another model, or the same model on another day, will give different numbers. Read the column as one measured run.
+- The judgment costs some precision. The judged failures include false alarms that the automatic checks do not have, most of them on the two rules about links with identical names, where deciding whether two destinations serve the same purpose is itself a judgment. Treat a judged failure as a finding to confirm, not a verdict.
+- Those two rules also remain the weakest: the judgment reported 3 of their 14 expected failures.
+- Rules about captions, audio description and transcripts were not judged, because that needs watching and listening to the media.
 
 ## Method and limits
 
@@ -277,10 +302,10 @@ The rules that neither tool covers mostly need a judgment about meaning, such as
 
 ## Per rule
 
-Each cell gives failures found / flagged for review / false alarms. A dash means the tool has no check for the rule.
+Each cell gives failures found / flagged for review / false alarms. A dash means the rule is not covered.
 
-| Rule | Success criteria | Expected failures | axe-core alone | kikori |
-|---|---|---|---|---|
+| Rule | Success criteria | Expected failures | axe-core alone | kikori, automatic | kikori with judgment |
+|---|---|---|---|---|---|
 ${rows.join("\n")}
 `;
 }

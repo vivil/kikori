@@ -330,6 +330,30 @@ There are two severities.
 - Checks run in Chromium only.
 - Zero findings is not a guarantee that a criterion is satisfied. Finish with human eyes and assistive technology.
 
+## Accuracy
+
+kikori is compared with axe-core on its own against the [W3C ACT Rules test cases](https://www.w3.org/WAI/standards-guidelines/act/rules/): 955 test cases from the 63 rules that map to a WCAG success criterion. Of these, 303 are expected to fail.
+
+| | axe-core alone | kikori, automatic checks | kikori with a model's judgment |
+|---|---|---|---|
+| Rules covered | 37 | 43 | 56 |
+| Expected failures reported | 162 (53.5%) | 179 (59.1%) | 225 (74.3%) |
+| Reported or flagged for review | 177 (58.4%) | 211 (69.6%) | 260 (85.8%) |
+| False alarms | 0 | 1 | 7 |
+| Precision | 100% | 99.4% | 97.0% |
+
+With the model's judgment, the expected failures that go unreported drop from 126 with axe-core alone to 43. Most of the gain is in rules that need a judgment about meaning: text alternatives, link text, headings and labels, images of text, and language. axe-core can tell whether such text is present, not whether it fits.
+
+The benchmark understates one part of kikori. The ACT rules mostly cover what can be read from a page's markup, so the checks kikori performs by operating the page, such as reflow, text spacing, hover content and comparisons between pages, are barely measured here.
+
+The first two columns are fully automatic. Run `npm run benchmark:act` to reproduce them.
+
+The third column adds the step kikori is designed around, where the calling model judges the criteria that need a judgment about meaning. For this run Claude was the judging model, run as a separate agent. It was given only what `collect_evidence` returns and screenshots, with the expected outcomes hidden. The judgments are recorded in [docs/act-judgments.json](docs/act-judgments.json). Another model, or the same model on another day, will give different numbers, so read this column as one measured run.
+
+The judgment finds more failures and costs some precision: 6 of the 7 false alarms come from it. Treat a judged failure as a finding to confirm. Rules about captions, audio description and transcripts were not judged.
+
+This is not a formal ACT implementation report. The method, its limits and the numbers for every rule are in [docs/act-results.md](docs/act-results.md).
+
 ## Development
 
 To work on kikori itself, build it from source.
