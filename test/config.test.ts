@@ -7,6 +7,7 @@ import type { AddressInfo } from "node:net";
 import { after, before, test } from "node:test";
 import { assertAllowedUrl, withPage } from "../src/browser.js";
 import { checkReflow } from "../src/checks/reflow.js";
+import { auditSite } from "../src/checks/site.js";
 import { checkInteraction } from "../src/checks/interaction.js";
 import { configure, filterStorageState, getSettings, isHostAllowed, LOOPBACK_HOSTS, parseArgs, type Settings } from "../src/config.js";
 
@@ -298,6 +299,10 @@ test("ログイン済みの状態: 指定すると、ログイン後のページ
   assert.equal(await heading(), "会員ページ");
   const audited = await checkReflow({ url: `http://127.0.0.1:${port}/members` });
   assert.equal(audited.check, "reflow");
+
+  // ログイン状態では、ページ内のリンクを自動ではたどらない。
+  const site = await auditSite({ url: `http://127.0.0.1:${port}/members` });
+  assert.ok(site.notes?.some((note) => /リンクは自動ではたどっていません/.test(note)));
 });
 
 test("ログイン済みの状態: 開いてよいホストに属さない Cookie とローカルストレージは持ち込まない", () => {
