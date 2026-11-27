@@ -14,7 +14,7 @@ export interface InteractionOptions {
   waitMs?: number;
 }
 
-const POINTER_EVENTS = ["touchmove", "gesturestart", "gesturechange", "gestureend", "mousedown", "pointerdown", "touchstart", "devicemotion", "deviceorientation"];
+const POINTER_EVENTS = ["dragstart", "touchmove", "gesturestart", "gesturechange", "gestureend", "mousedown", "pointerdown", "touchstart", "devicemotion", "deviceorientation"];
 
 interface StaticReport {
   lowContrastControls: (ElementInfo & { ratio: number; boundary: string; background: string })[];
@@ -24,6 +24,12 @@ interface StaticReport {
   statusCandidates: ElementInfo[];
   hasScriptsOrForms: boolean;
   formControls: number;
+  /** draggable 属性が付いた要素のセレクタ */
+  draggable: string[];
+  /** パスワードの入力欄と、その入力を妨げる指定 */
+  passwordFields: (ElementInfo & { autocompleteOff: boolean; pasteBlocked: boolean })[];
+  /** 画像の文字を読ませるなど、認知機能のテストを課していそうな要素 */
+  captchas: ElementInfo[];
 }
 
 const MAX_REPORTED = 15;
@@ -141,6 +147,21 @@ export async function checkInteraction(options: InteractionOptions): Promise<Che
           details: { events: types },
         });
       }
+      const draggable = new Map([...group(["dragstart"])]);
+      for (const selector of report.draggable) if (!draggable.has(selector)) draggable.set(selector, ["draggable"]);
+      for (const [selector, types] of [...draggable].slice(0, MAX_REPORTED)) {
+        findings.push({
+          sc: SC.dragging,
+          severity: "review",
+          selector,
+          message: tr(
+            `ドラッグで操作する要素です (${types.join("、")})。ドラッグせずに、1 回のクリックやボタンでも同じ操作ができるか確認してください。`,
+            `This element is operated by dragging (${types.join(", ")}). Check that the same thing can be done without dragging, with a single click or a button.`,
+          ),
+          details: { events: types },
+        });
+      }
+      checked.push("2.5.7");
       const report254 = group(["devicemotion", "deviceorientation"]);
       for (const [selector, types] of report254) {
         findings.push({
@@ -159,6 +180,53 @@ export async function checkInteraction(options: InteractionOptions): Promise<Che
       } else {
         checked.push("2.5.1", "2.5.2");
       }
+    }
+
+    // --- 3.3.8 / 3.3.9: 認証で、覚える・書き写す・解くことを強いていないか ---
+    if (report.passwordFields.length === 0 && report.captchas.length === 0) {
+      inapplicable.push("3.3.8", "3.3.9");
+    } else {
+      for (const field of report.passwordFields) {
+        if (field.pasteBlocked) {
+          findings.push({
+            sc: SC.accessibleAuthentication,
+            severity: "fail",
+            selector: field.selector,
+            message: tr(
+              "パスワードの欄が貼り付けを拒否しています。パスワード管理ツールや貼り付けで入力できないと、覚えるか書き写すしかなくなります。貼り付けを許可してください。",
+              "The password field rejects paste. Without paste or a password manager, users have to memorise or transcribe the password. Allow pasting.",
+            ),
+            details: { text: field.text },
+          });
+        } else if (field.autocompleteOff) {
+          findings.push({
+            sc: SC.accessibleAuthentication,
+            severity: "review",
+            selector: field.selector,
+            message: tr(
+              'パスワードの欄に autocomplete="off" が指定されています。パスワード管理ツールで入力できるか確認し、current-password か new-password を指定してください。',
+              'The password field has autocomplete="off". Check that a password manager can fill it, and set current-password or new-password.',
+            ),
+            details: { text: field.text },
+          });
+        }
+      }
+      for (const captcha of report.captchas.slice(0, MAX_REPORTED)) {
+        // 物体の認識による認証は、最低限の基準 (AA) では例外として認められるが、高度な基準 (AAA) では認められない。
+        for (const sc of [SC.accessibleAuthentication, SC.accessibleAuthenticationEnhanced]) {
+          findings.push({
+            sc,
+            severity: "review",
+            selector: captcha.selector,
+            message: tr(
+              "CAPTCHA のような、認知機能のテストに見える要素があります。文字の読み取りやパズルを課す場合は、それに頼らない認証の手段があるか確認してください。",
+              "This looks like a cognitive function test, such as a CAPTCHA. If it asks users to read characters or solve a puzzle, check that there is a way to authenticate that does not depend on it.",
+            ),
+            details: { text: captcha.text },
+          });
+        }
+      }
+      checked.push("3.3.8", "3.3.9");
     }
 
     // --- 2.1.4: 文字キーだけで動くショートカットがないか ---
@@ -529,6 +597,18 @@ function collectStatic(): StaticReport {
     liveRegions: document.querySelectorAll(LIVE).length,
     statusCandidates,
     hasScriptsOrForms: document.scripts.length > 0 || document.querySelector("form, input, select, textarea") !== null,
+    draggable: Array.from(document.querySelectorAll("[draggable='true']")).filter((el) => kikori.isVisible(el)).slice(0, 30).map((el) => kikori.selector(el)),
+    passwordFields: Array.from(document.querySelectorAll<HTMLInputElement>("input[type='password']"))
+      .filter((el) => !el.disabled)
+      .map((el) => {
+        // 貼り付けを取り消す処理があるかを、取り消せる paste イベントを送って確かめる。値は変わらない。
+        const probe = new ClipboardEvent("paste", { bubbles: true, cancelable: true });
+        const pasteBlocked = !el.dispatchEvent(probe);
+        return { ...kikori.describe(el), text: (el.labels?.[0]?.innerText ?? el.getAttribute("aria-label") ?? "").trim().slice(0, 80), autocompleteOff: el.getAttribute("autocomplete") === "off", pasteBlocked };
+      }),
+    captchas: Array.from(document.querySelectorAll("iframe[src*='recaptcha'], iframe[src*='hcaptcha'], iframe[src*='turnstile'], .g-recaptcha, .h-captcha, .cf-turnstile, [class*='captcha' i], [id*='captcha' i], img[alt*='captcha' i]"))
+      .slice(0, 10)
+      .map(kikori.describe),
     formControls: document.querySelectorAll("select, input:not([type='hidden']):not([type='submit']):not([type='button']):not([type='reset']):not([type='image']):not([type='file']), textarea").length,
   };
 }

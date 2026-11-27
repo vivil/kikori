@@ -2,13 +2,15 @@ import { lang, tr } from "../i18n.js";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { withPage } from "../browser.js";
-import { findCriterion, withinLevel, type Level, type SuccessCriterion } from "../criteria.js";
+import { findCriterion, inVersion, withinLevel, type Level, type SuccessCriterion, type WcagVersion } from "../criteria.js";
 import { summarize, type CheckResult, type Finding } from "../types.js";
 
 export interface AxeOptions {
   url: string;
   /** 目標とする適合レベル。既定値は AA。 */
   level?: Level;
+  /** 対象とする WCAG のバージョン。既定値は 2.2。 */
+  wcag?: WcagVersion;
   width?: number;
   height?: number;
   waitForSelector?: string;
@@ -64,6 +66,10 @@ export function criteriaFromTags(tags: string[]): SuccessCriterion[] {
 
 export async function checkAxe(options: AxeOptions): Promise<CheckResult> {
   const level = options.level ?? "AA";
+  const version = options.wcag ?? "2.2";
+  // WCAG 2.2 で追加されたルールは、レベル AA 以上を対象にしたときだけ加える。
+  const tags = [...TAGS[level], ...(version === "2.2" && level !== "A" ? ["wcag22aa"] : [])];
+  const inScope = (sc: SuccessCriterion): boolean => withinLevel(sc, level) && inVersion(sc, version);
   const viewport = { width: options.width ?? 1280, height: options.height ?? 720 };
   // axe の文面は英語が既定。日本語のときだけ、同梱の訳を読み込む。
   const locale = lang() === "ja" ? (JSON.parse(await readFile(require.resolve("axe-core/locales/ja.json"), "utf8")) as unknown) : null;
@@ -81,14 +87,14 @@ export async function checkAxe(options: AxeOptions): Promise<CheckResult> {
           resultTypes: ["violations", "incomplete"],
         });
       },
-      { locale, tags: TAGS[level], experimental: EXPERIMENTAL_RULES },
+      { locale, tags, experimental: EXPERIMENTAL_RULES },
     )) as AxeResults;
 
     const findings: Finding[] = [];
     const notes: string[] = [];
     const push = (rule: AxeRuleResult, severity: "fail" | "review"): void => {
       // 1 つのルールが複数の達成基準にまたがる場合は、範囲内のものすべてに記録する。
-      const criteria = criteriaFromTags(rule.tags).filter((sc) => withinLevel(sc, level));
+      const criteria = criteriaFromTags(rule.tags).filter(inScope);
       if (criteria.length === 0) return;
       if (rule.nodes.length > MAX_NODES_PER_RULE) {
         notes.push(tr(`${rule.id} の指摘は ${rule.nodes.length} 件あり、先頭の ${MAX_NODES_PER_RULE} 件だけを報告しています。`, `${rule.id} has ${rule.nodes.length} findings; only the first ${MAX_NODES_PER_RULE} are reported.`));
@@ -115,7 +121,7 @@ export async function checkAxe(options: AxeOptions): Promise<CheckResult> {
     for (const rule of results.incomplete) push(rule, "review");
 
     const ids = (rules: AxeRuleResult[]): Set<string> =>
-      new Set(rules.flatMap((r) => criteriaFromTags(r.tags)).filter((sc) => withinLevel(sc, level)).map((sc) => sc.id));
+      new Set(rules.flatMap((r) => criteriaFromTags(r.tags)).filter(inScope).map((sc) => sc.id));
     const checked = ids([...results.passes, ...results.violations, ...results.incomplete]);
     const inapplicable = [...ids(results.inapplicable)].filter((id) => !checked.has(id));
 
@@ -127,7 +133,7 @@ export async function checkAxe(options: AxeOptions): Promise<CheckResult> {
       findings,
       checked: [...checked].sort(),
       inapplicable: inapplicable.sort(),
-      data: { level, rulesRun: results.passes.length + results.violations.length + results.incomplete.length + results.inapplicable.length },
+      data: { level, wcag: version, rulesRun: results.passes.length + results.violations.length + results.incomplete.length + results.inapplicable.length },
       ...(notes.length > 0 ? { notes } : {}),
     };
   });

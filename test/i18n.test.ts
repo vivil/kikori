@@ -23,7 +23,7 @@ test("英語: 監査の結果に日本語が混ざらず、達成基準の名前
     const text = ownText(result);
     assert.ok(!JAPANESE.test(text), `${name}: ${JAPANESE.exec(text)?.index !== undefined ? text.slice(Math.max(0, JAPANESE.exec(text)!.index - 80), JAPANESE.exec(text)!.index + 40) : ""}`);
     assert.equal(result.criteria.find((c) => c.id === "1.4.10")?.name, "Reflow");
-    assert.equal(result.target, "WCAG 2.1 Level AAA");
+    assert.equal(result.target, "WCAG 2.2 Level AAA");
   }
 });
 

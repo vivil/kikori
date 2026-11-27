@@ -212,7 +212,7 @@ export async function checkKeyboardFocus(options: FocusOptions): Promise<CheckRe
       viewport,
       summary: summarize(findings),
       findings,
-      checked: ["2.1.1", "2.1.2", "2.4.3", "2.4.7", "2.4.11", "3.2.1"],
+      checked: ["2.1.1", "2.1.2", "2.4.3", "2.4.7", "2.4.11", "2.4.12", "2.4.13", "3.2.1"],
       data: { completedCycle: completed, focusableCount: sequence.length, sequence },
       ...(notes.length > 0 ? { notes } : {}),
     };
@@ -247,6 +247,7 @@ async function inspectIndicator(page: Page, state: Extract<FocusState, { kind: "
   await page.evaluate((index) => window.__kikoriFocus.refocus(index), state.index);
 
   // 全体が隠れている要素は、表示の有無を見分けられないので 2.4.11 だけを報告する。
+  const indicatorShown = !focused.equals(blurred);
   if (state.obscured !== "full" && focused.equals(blurred)) {
     findings.push(
       state.editable
@@ -276,13 +277,35 @@ async function inspectIndicator(page: Page, state: Extract<FocusState, { kind: "
       details: { text: info.text, obscuredBy: state.obscuredBy },
     });
   } else if (state.obscured === "partial") {
+    // 一部が隠れているだけなら 2.4.11 (AA) は満たす。どこも隠れないことを求めるのは 2.4.12 (AAA)。
     findings.push({
-      sc: SC.focusNotObscured,
-      severity: "review",
+      sc: SC.focusNotObscuredEnhanced,
+      severity: "fail",
       selector: info.selector,
-      message: tr(`フォーカス中の要素の一部が、別の要素 (${state.obscuredBy ?? "不明"}) に隠れています。AA の基準は満たしますが、見分けにくくないか確認してください。`, `Part of the focused element is hidden behind another element (${state.obscuredBy ?? "unknown"}). This meets Level AA, but check that it is still easy to make out.`),
+      message: tr(
+        `フォーカス中の要素の一部が、別の要素 (${state.obscuredBy ?? "不明"}) に隠れています。固定ヘッダーなどの裏に入らないよう、scroll-padding などで調整してください。`,
+        `Part of the focused element is hidden behind another element (${state.obscuredBy ?? "unknown"}). Adjust with scroll-padding or similar so it does not go under a fixed header.`,
+      ),
       details: { text: info.text, obscuredBy: state.obscuredBy },
     });
+  }
+
+  // 2.4.13 (AAA): フォーカス表示は、太さ 2px の外周に相当する面積と、3:1 以上の変化が要る。
+  // 画像からは測っていないので、outline の指定が基準に届かないときだけ、確認を求める。
+  if (indicatorShown && state.obscured !== "full") {
+    const [style, width] = state.outline.split(" ");
+    if (style === "none" || parseFloat(width ?? "0") < 2) {
+      findings.push({
+        sc: SC.focusAppearance,
+        severity: "review",
+        selector: info.selector,
+        message: tr(
+          `フォーカス表示はありますが、outline は ${style === "none" ? "指定されていません" : `${width} です`}。太さ 2px の外周に相当する面積があり、フォーカスの有無で 3:1 以上の差が出ているか確認してください。`,
+          `There is a focus indicator, but the outline is ${style === "none" ? "not set" : width}. Check that the indicator is at least as large as a 2px perimeter and changes contrast by at least 3:1 between the focused and unfocused states.`,
+        ),
+        details: { text: info.text, outline: state.outline },
+      });
+    }
   }
   return findings;
 }

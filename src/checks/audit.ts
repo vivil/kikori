@@ -5,7 +5,7 @@ import { checkInteraction } from "./interaction.js";
 import { checkPresentation } from "./presentation.js";
 import { checkReflow } from "./reflow.js";
 import { checkTextSpacing } from "./textSpacing.js";
-import { WCAG21, WCAG22_EXTRA, withinLevel, type Level, type SuccessCriterion } from "../criteria.js";
+import { criteriaOf, inVersion, WCAG22_ADDED, withinLevel, type Level, type SuccessCriterion, type WcagVersion } from "../criteria.js";
 import { ALWAYS_JUDGED } from "../evidence.js";
 import { summarize, type CheckResult } from "../types.js";
 
@@ -13,6 +13,8 @@ export interface AuditOptions {
   url: string;
   /** 目標とする適合レベル。既定値は AA。 */
   level?: Level;
+  /** 対象とする WCAG のバージョン。既定値は 2.2。 */
+  wcag?: WcagVersion;
   /** 呼び出し側のモデルや人が下した判断。達成基準の一覧に反映する。 */
   judgments?: Judgment[];
   waitForSelector?: string;
@@ -77,12 +79,14 @@ export type Verdict = "nonconformant" | "undetermined" | "no_failure_found";
 
 /** 目標のレベルを超える達成基準の指摘を取り除く。 */
 export function limitToLevel(result: CheckResult, level: Level): CheckResult {
+  // バージョンによる絞り込みは、達成基準の一覧を作るときに行う。2.1 を対象にしたときも、
+  // 2.2 で追加された達成基準の指摘は beyondTarget に出すので、ここでは残しておく。
   const findings = result.findings.filter((f) => withinLevel(f.sc, level));
   return { ...result, findings, summary: summarize(findings) };
 }
 
 /** 検査結果の集まりを、達成基準ごとの状態にまとめる。複数ページの結果を混ぜて渡してもよい。 */
-export function summarizeCriteria(results: CheckResult[], level: Level, judgments: Judgment[] = []): CriteriaSummary {
+export function summarizeCriteria(results: CheckResult[], level: Level, judgments: Judgment[] = [], version: WcagVersion = "2.2"): CriteriaSummary {
   const judged = new Map(judgments.map((j) => [j.id, j]));
   const toRow = (sc: SuccessCriterion): CriterionRow => {
     let fail = 0;
@@ -136,8 +140,14 @@ export function summarizeCriteria(results: CheckResult[], level: Level, judgment
     };
   };
 
-  const criteria = WCAG21.filter((sc) => withinLevel(sc, level)).map(toRow);
-  const beyondTarget = WCAG22_EXTRA.filter((sc) => withinLevel(sc, level)).map(toRow);
+  const criteria = criteriaOf(version).filter((sc) => withinLevel(sc, level)).map(toRow);
+  // 2.1 を対象にしたときは、2.2 で追加された達成基準のうち検査したものを、参考として別に返す。
+  const beyondTarget =
+    version === "2.1"
+      ? WCAG22_ADDED.filter((sc) => withinLevel(sc, level))
+          .map(toRow)
+          .filter((r) => r.status !== "manual")
+      : [];
   const counts: Record<CriterionStatus, number> = { fail: 0, review: 0, needs_judgment: 0, no_issue_found: 0, judged_pass: 0, inapplicable: 0, manual: 0 };
   for (const row of criteria) counts[row.status]++;
 
@@ -145,10 +155,10 @@ export function summarizeCriteria(results: CheckResult[], level: Level, judgment
   const verdict: Verdict = counts.fail > 0 ? "nonconformant" : open > 0 ? "undetermined" : "no_failure_found";
   const explanation =
     verdict === "nonconformant"
-      ? tr(`${counts.fail} 件の達成基準で不適合が見つかりました。WCAG 2.1 レベル ${level} には適合していません。`, `Failures were found in ${counts.fail} success criteria. The page does not conform to WCAG 2.1 Level ${level}.`)
+      ? tr(`${counts.fail} 件の達成基準で不適合が見つかりました。WCAG ${version} レベル ${level} には適合していません。`, `Failures were found in ${counts.fail} success criteria. The page does not conform to WCAG ${version} Level ${level}.`)
       : verdict === "undetermined"
         ? tr(`自動検査では不適合が見つかりませんでした。ただし ${open} 件の達成基準は確認が残っています (要確認 ${counts.review} 件、判断待ち ${counts.needs_judgment} 件、手動 ${counts.manual} 件)。判断待ちの達成基準は、collect_evidence で材料を集めて判断し、judgments に渡して再実行してください。`, `No failures were found by the automated checks, but ${open} success criteria are still open (needs review ${counts.review}, awaiting judgment ${counts.needs_judgment}, manual ${counts.manual}). For those awaiting judgment, gather material with collect_evidence, decide, and run again with the decisions in judgments.`)
-        : tr(`自動検査と渡された判断を合わせて、WCAG 2.1 レベル ${level} のすべての達成基準で不適合が見つかりませんでした。自動検査は調べられる範囲に限りがあり、判断はモデルによるものを含みます。適合を表明する前に、支援技術を使った人による確認を行ってください。`, `Combining the automated checks and the supplied judgments, no failures were found in any WCAG 2.1 Level ${level} success criterion. Automated checks cover a limited range and some judgments were made by a model. Have a person verify with assistive technology before claiming conformance.`);
+        : tr(`自動検査と渡された判断を合わせて、WCAG ${version} レベル ${level} のすべての達成基準で不適合が見つかりませんでした。自動検査は調べられる範囲に限りがあり、判断はモデルによるものを含みます。適合を表明する前に、支援技術を使った人による確認を行ってください。`, `Combining the automated checks and the supplied judgments, no failures were found in any WCAG ${version} Level ${level} success criterion. Automated checks cover a limited range and some judgments were made by a model. Have a person verify with assistive technology before claiming conformance.`);
   return { criteria, beyondTarget, counts, verdict, explanation };
 }
 
@@ -163,7 +173,7 @@ export interface AuditResult {
   };
   summary: { fail: number; review: number };
   criteria: CriterionRow[];
-  /** WCAG 2.2 で追加された達成基準。目標とする WCAG 2.1 の判定には含めない。 */
+  /** wcag が 2.1 のとき、2.2 で追加された達成基準のうち検査したもの。判定には含めない。 */
   beyondTarget: CriterionRow[];
   results: CheckResult[];
 }
@@ -171,8 +181,9 @@ export interface AuditResult {
 /** すべての検査を順に実行し、達成基準ごとの状態にまとめる。 */
 export async function auditPage(options: AuditOptions): Promise<AuditResult> {
   const level = options.level ?? "AA";
+  const version = options.wcag ?? "2.2";
   const raw = [
-    await checkAxe({ ...options, level }),
+    await checkAxe({ ...options, level, wcag: version }),
     await checkReflow(options),
     await checkTextSpacing(options),
     await checkKeyboardFocus(options),
@@ -182,11 +193,11 @@ export async function auditPage(options: AuditOptions): Promise<AuditResult> {
 
   // 目標のレベルを超える達成基準の指摘は、判定にも一覧にも含めない。
   const results = raw.map((result) => limitToLevel(result, level));
-  const { criteria, beyondTarget, counts, verdict, explanation } = summarizeCriteria(results, level, options.judgments);
+  const { criteria, beyondTarget, counts, verdict, explanation } = summarizeCriteria(results, level, options.judgments, version);
 
   return {
     url: options.url,
-    target: tr(`WCAG 2.1 レベル ${level}`, `WCAG 2.1 Level ${level}`),
+    target: tr(`WCAG ${version} レベル ${level}`, `WCAG ${version} Level ${level}`),
     conformance: { verdict, explanation, counts },
     summary: {
       fail: results.reduce((n, r) => n + r.summary.fail, 0),

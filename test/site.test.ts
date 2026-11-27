@@ -5,7 +5,7 @@ import type { AddressInfo } from "node:net";
 import { after, before, test } from "node:test";
 import { checkKeyboardFocus } from "../src/checks/focus.js";
 import { checkPresentation } from "../src/checks/presentation.js";
-import { auditSite, type SiteResult } from "../src/checks/site.js";
+import { auditSite, comparePages, type PageSnapshot, type SiteResult } from "../src/checks/site.js";
 
 const fixtures = new URL("../../test/fixtures/", import.meta.url);
 let server: Server;
@@ -62,8 +62,7 @@ test("サイト: たどり着く手段が 2 つあれば 2.4.5 を指摘せず�
 test("サイト: ページごとの指摘も達成基準の状態に反映する", () => {
   assert.equal(result.conformance.verdict, "nonconformant");
   assert.equal(status("1.3.5"), "review");
-  assert.equal(status("4.1.1"), "no_issue_found");
-  assert.equal(result.criteria.length, 78);
+  assert.equal(result.criteria.length, 86);
 });
 
 test("サイト: urls を指定すると、リンクをたどらずその一覧だけを検査する", async () => {
@@ -85,4 +84,35 @@ test("提示: autocomplete のない個人情報の欄を要確認にし、入�
   assert.ok(contact.findings.some((f) => f.sc.id === "1.3.5" && f.selector === "#mail" && f.details?.hint === "email"));
   const home = await checkPresentation({ url: `${origin}/site/index.html` });
   assert.ok(home.inapplicable?.includes("3.3.1"));
+});
+
+test("サイト: 問い合わせへの案内の位置がページによって違うと、不適合として報告する", () => {
+  const [finding] = cross("3.2.6");
+  assert.equal(finding?.severity, "fail");
+  assert.equal(finding?.details?.page, `${origin}/site/contact.html`);
+  assert.equal(status("3.2.6"), "fail");
+});
+
+test("サイト: 同じ入力欄が複数のページにあると、再入力の確認を求める", () => {
+  const page = (url: string, formFields: string[], helpLinks: string[] = []): PageSnapshot => ({
+    url,
+    title: url,
+    navs: [],
+    repeatedLinks: [],
+    internalLinks: [],
+    hasSearch: false,
+    hasSitemapLink: false,
+    hasBreadcrumb: false,
+    hasCurrentMarker: false,
+    helpLinks,
+    formFields,
+  });
+  const repeated = comparePages([page("https://shop.test/cart", ["email", "postal-code"]), page("https://shop.test/pay", ["email", "cc-number"])]);
+  const findings = repeated.findings.filter((f) => f.sc.id === "3.3.7");
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0]?.details?.field, "email");
+  assert.ok(repeated.inapplicable?.includes("3.2.6"));
+
+  const none = comparePages([page("https://shop.test/a", []), page("https://shop.test/b", [])]);
+  assert.ok(none.inapplicable?.includes("3.3.7"));
 });
