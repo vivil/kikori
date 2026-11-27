@@ -285,20 +285,71 @@ function collectRaw(language: "ja" | "en") {
   }
 
   const GENERIC = /^(こちら|ここ|詳細|詳しく|もっと見る|続きを読む|続き|クリック|click here|here|more|read more|learn more|details?)$/i;
+  /** その要素より前にある、いちばん近い見出しの文言 */
+  const headingBefore = (el: Element): string | null => {
+    let found: string | null = null;
+    for (const heading of document.querySelectorAll<HTMLElement>("h1, h2, h3, h4, h5, h6, [role='heading']")) {
+      if (heading.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) found = clean(heading.innerText);
+      else break;
+    }
+    return found;
+  };
+  const tableHeaders = (cell: Element | null): string[] | null => {
+    if (!(cell instanceof HTMLTableCellElement)) return null;
+    const row = cell.parentElement as HTMLTableRowElement | null;
+    const table = cell.closest("table");
+    if (!row || !table) return null;
+    const found = new Set<string>();
+    for (const id of (cell.getAttribute("headers") ?? "").split(/\s+/)) {
+      const text = clean(document.getElementById(id)?.textContent);
+      if (text) found.add(text);
+    }
+    for (const th of row.querySelectorAll("th")) if (th !== cell) found.add(clean(th.textContent));
+    for (const other of table.rows) {
+      const above: HTMLTableCellElement | undefined = other.cells[cell.cellIndex];
+      if (above && above !== cell && above.tagName === "TH") found.add(clean(above.textContent));
+    }
+    found.delete("");
+    return found.size > 0 ? [...found] : null;
+  };
   const links = visible<HTMLAnchorElement>("a[href]", 80).map((a) => {
-    const name = clean(a.getAttribute("aria-label") ?? a.innerText) || clean(a.querySelector("img[alt]")?.getAttribute("alt"));
-    const context = a.closest("p, li, td, th, dd, figcaption");
+    const labelledBy = (a.getAttribute("aria-labelledby") ?? "")
+      .split(/\s+/)
+      .map((id) => document.getElementById(id)?.textContent ?? "")
+      .join(" ");
+    const name = clean(labelledBy) || clean(a.getAttribute("aria-label") ?? a.innerText) || clean(a.querySelector("img[alt]")?.getAttribute("alt"));
+    // 文脈として認められるのは、同じ文、段落、リスト項目、表のセルと、それに結び付いた見出し。
+    const container = a.closest("p, li, td, th, dd, figcaption");
+    const context = clean((container as HTMLElement | null)?.innerText, 160);
     return {
       selector: kikori.selector(a),
       name,
       href: a.getAttribute("href"),
-      ...(GENERIC.test(name) || name === "" ? { generic: true, context: clean((context as HTMLElement | null)?.innerText, 120) } : {}),
+      ...(GENERIC.test(name) || name === "" ? { generic: true } : {}),
+      // リンクの文言と同じなら、文脈は何も足していない。
+      context: context && context !== name ? context : null,
+      describedBy: clean((a.getAttribute("aria-describedby") ?? "").split(/\s+/).map((id) => document.getElementById(id)?.textContent ?? "").join(" ")) || null,
+      // 入れ子のリストでは、親のリスト項目も文脈になる。
+      parentListItem: clean(Array.from(a.closest("li")?.parentElement?.closest("li")?.childNodes ?? []).filter((n) => n.nodeType === Node.TEXT_NODE || !(n as Element).matches?.("ul, ol")).map((n) => n.textContent ?? "").join(" "), 120) || null,
+      // 表のセルの中では、同じ行と同じ列の見出しセルも文脈になる。
+      tableHeaders: tableHeaders(a.closest("td, th")),
+      headingBefore: headingBefore(a),
     };
   });
 
-  const headings = visible<HTMLElement>("h1, h2, h3, h4, h5, h6, [role='heading']", 60).map((h) => ({
+  const headingElements = visible<HTMLElement>("h1, h2, h3, h4, h5, h6, [role='heading']", 60);
+  /** 見出しのあと、次の見出しまでに続く文章。見出しが内容を表しているかを見比べるのに使う。 */
+  const following = (heading: HTMLElement, next: HTMLElement | undefined): string => {
+    const range = document.createRange();
+    range.setStartAfter(heading);
+    if (next) range.setEndBefore(next);
+    else range.setEndAfter(document.body.lastChild ?? document.body);
+    return clean(range.toString(), 160);
+  };
+  const headings = headingElements.map((h, i) => ({
     level: h.getAttribute("aria-level") ?? h.tagName.slice(1),
     text: clean(h.innerText),
+    following: following(h, headingElements[i + 1]),
     selector: kikori.selector(h),
   }));
   const labels = Array.from(document.querySelectorAll<HTMLInputElement>("input:not([type='hidden']), select, textarea"))
@@ -306,7 +357,13 @@ function collectRaw(language: "ja" | "en") {
     .map((field) => ({
       selector: kikori.selector(field),
       type: field.type,
-      label: clean(field.labels?.[0]?.innerText ?? field.getAttribute("aria-label") ?? ""),
+      label:
+        clean((field.getAttribute("aria-labelledby") ?? "").split(/\s+/).map((id) => document.getElementById(id)?.textContent ?? "").join(" ")) ||
+        clean(field.labels?.[0]?.innerText ?? field.getAttribute("aria-label") ?? ""),
+      // ラベルが欄の目的を表しているかを見比べる手がかり。
+      name: field.getAttribute("name"),
+      autocomplete: field.getAttribute("autocomplete"),
+      nearbyText: clean((field.closest("p, li, td, div, fieldset") as HTMLElement | null)?.innerText, 120),
       placeholder: field.getAttribute("placeholder"),
     }));
 
