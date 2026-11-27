@@ -251,7 +251,8 @@ Keep the following in mind.
 - Use a test account. Results contain the text and screenshots of what that account can see, and they are handed to the model.
 - Only cookies and local storage that belong to a host listed in `--allow-host` are loaded. The rest of the file is ignored.
 - The session can be used to act as that account. While `check_interaction` tries key presses, hover and input changes with a login state loaded, it blocks every request and closes open WebSockets, so nothing can be triggered with the account's rights. Hover content that is fetched over the network is not detected in that mode.
-- A site that changes state when a page is merely loaded with GET can still be affected.
+- With a login state loaded, `audit_site` does not follow links on its own, because a link may log the account out or delete something. List the pages to audit in `urls`.
+- A site that changes state when a page is merely loaded with GET can still be affected by the pages you list.
 - kikori reads the file and never updates it. When the session expires, pages redirect to the login screen again; create the file anew.
 
 ## Input
@@ -310,7 +311,7 @@ There are two severities.
 - Iframe loads are blocked by default. Even when allowed with `--allow-frame-host`, elements inside iframes are outside the axe and focus checks.
 - Line length is an estimate that counts a CJK character as 1em and a Latin character as 0.5em.
 - `audit_page` works on one page. Criteria that compare pages, such as 3.2.3 and 3.2.4, come back as `manual`; use `audit_site` for those.
-- `audit_site` follows only the links on the start page. Screens that appear after an action cannot be audited. Pages behind a login need `--storage-state`.
+- `audit_site` follows only the links on the start page. Screens that appear after an action cannot be audited. Pages behind a login need `--storage-state`, and then the pages have to be listed in `urls`.
 - When auditing against WCAG 2.1, 4.1.1 is treated as always satisfied for HTML content, per the WCAG 2.1 errata.
 - The checks for the criteria added in WCAG 2.2 are heuristics. 2.4.13 is judged from the `outline` style, not from the pixels of the indicator. 3.3.8 looks for password fields and common CAPTCHA markup, and does not follow a login flow.
 - When a page has no media or no form fields, the related criteria are presumed not to apply. Elements loaded later may be missed.
