@@ -1,6 +1,6 @@
 {
   "name": "kikori",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Kikori (lumberjack): an MCP server that audits WCAG 2.1 in a real browser, beyond what axe-core can check",
   "keywords": [
     "mcp",
