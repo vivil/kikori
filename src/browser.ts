@@ -1,9 +1,9 @@
 import { tr } from "./i18n.js";
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { chromium, type Browser, type Page } from "playwright";
-import { getSettings, isFrameHostAllowed, isHostAllowed } from "./config.js";
+import { chromium, type Browser, type BrowserContextOptions, type Page, type WebSocketRoute } from "playwright";
+import { filterStorageState, getSettings, isFrameHostAllowed, isHostAllowed, type StorageState } from "./config.js";
 import { installHelpers } from "./helpers.js";
 import { launchWithInstall, MissingBrowserError } from "./install.js";
 
@@ -112,6 +112,18 @@ export function assertAllowedUrl(raw: string): URL {
   return url;
 }
 
+const frozen = new WeakSet<Page>();
+const socketsOf = new WeakMap<Page, WebSocketRoute[]>();
+
+/**
+ * このページからの通信を凍結する。以後、すべての要求が止まり、開いている WebSocket も閉じる。
+ * ログイン済みの状態で操作を試すとき、本人の権限で何かが実行されるのを防ぐために使う。元には戻せない。
+ */
+export function freezeNetwork(page: Page): void {
+  frozen.add(page);
+  for (const socket of socketsOf.get(page) ?? []) void socket.close({ code: 1001, reason: "frozen" }).catch(() => undefined);
+}
+
 /** 検査の結果に、利用者へ伝える補足を足す。 */
 function addNote(result: unknown, note: string): void {
   if (typeof result !== "object" || result === null || Array.isArray(result)) return;
@@ -145,12 +157,20 @@ export async function withPage<T>(options: PageOptions, run: (page: Page) => Pro
             ),
       );
     }
+    const statePath = getSettings().storageState;
+    const storageState = statePath
+      ? (filterStorageState(JSON.parse(readFileSync(statePath, "utf8")) as StorageState) as NonNullable<BrowserContextOptions["storageState"]>)
+      : undefined;
     const context = await browser.newContext({
       viewport: options.viewport,
       deviceScaleFactor: 1,
       // デスクトップで拡大したときの挙動を再現するため、モバイル扱いにはしない。
       isMobile: false,
       reducedMotion: "reduce",
+      // Service Worker が出す要求は、下の確認を通らない。宛先の制限をすり抜けないよう、登録させない。
+      serviceWorkers: "block",
+      // ログイン済みの状態を読み込む。開いてよいホストに属さない Cookie は、持ち込まない。
+      ...(storageState ? { storageState } : {}),
     });
     const SAFE_SCHEMES = new Set(["about:", "data:", "blob:", "chrome-error:"]);
     /** iframe が読み込んでよい URL か。data: や about:blank は親のページ自身の内容なので止めない。 */
@@ -195,6 +215,8 @@ export async function withPage<T>(options: PageOptions, run: (page: Page) => Pro
       return SAFE_SCHEMES.has(target.protocol);
     };
     const blockedResources = new Set<string>();
+    const sockets: WebSocketRoute[] = [];
+    let page!: Page;
 
     // すべての要求を、送る前に確かめる。
     await context.route("**/*", (route) => {
@@ -205,6 +227,9 @@ export async function withPage<T>(options: PageOptions, run: (page: Page) => Pro
       } catch {
         return route.abort("blockedbyclient");
       }
+      // 通信を凍結している間は、ここに届いた要求をすべて止める。iframe の読み込みも、
+      // 新しく開いたウィンドウからの要求も含む。
+      if (frozen.has(page)) return route.abort("blockedbyclient");
       if (!request.isNavigationRequest()) {
         if (resourceAllowed(target)) return route.fallback();
         blockedResources.add(target.protocol === "file:" ? target.pathname : target.host);
@@ -225,16 +250,20 @@ export async function withPage<T>(options: PageOptions, run: (page: Page) => Pro
       } catch {
         allowed = false;
       }
-      if (allowed) {
+      if (allowed && !frozen.has(page)) {
         ws.connectToServer();
+        sockets.push(ws);
+      } else if (allowed) {
+        void ws.close({ code: 1008, reason: "blocked" });
       } else {
         blockedResources.add(new URL(ws.url()).host);
         void ws.close({ code: 1008, reason: "blocked" });
       }
     });
 
-    const page = await context.newPage();
+    page = await context.newPage();
     page.setDefaultTimeout(timeout);
+    socketsOf.set(page, sockets);
 
     // サーバー側の転送は上の仕組みを通らないので、どのフレームがどこへ着いたかを見張る。
     // 許可していない場所に一度でも着いたら、検査の結果は返さない。

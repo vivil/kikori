@@ -1,22 +1,58 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import type { AddressInfo } from "node:net";
 import { after, before, test } from "node:test";
 import { assertAllowedUrl, withPage } from "../src/browser.js";
 import { checkReflow } from "../src/checks/reflow.js";
-import { configure, getSettings, isHostAllowed, LOOPBACK_HOSTS, parseArgs, type Settings } from "../src/config.js";
+import { auditSite } from "../src/checks/site.js";
+import { checkInteraction } from "../src/checks/interaction.js";
+import { configure, filterStorageState, getSettings, isHostAllowed, LOOPBACK_HOSTS, parseArgs, type Settings } from "../src/config.js";
 
-const settings = (hosts: string[] | null, frames: string[] = []): Settings => ({ lang: "ja", allowedHosts: hosts, allowedFrameHosts: frames, fileRoot: null, allowFile: true, autoInstall: true });
+const settings = (hosts: string[] | null, frames: string[] = []): Settings => ({ lang: "ja", allowedHosts: hosts, allowedFrameHosts: frames, fileRoot: null, allowFile: true, autoInstall: true, storageState: null });
 const original = getSettings();
 let server: Server;
 let port: number;
 const pixelHits: string[] = [];
+let toggleHits = 0;
 
 before(async () => {
   server = createServer((req, res) => {
     if (req.url === "/redirect") {
       // 許可していないホスト (localhost) へ転送する。
       res.writeHead(302, { location: `http://localhost:${port}/page` }).end();
+      return;
+    }
+    if (req.url === "/toggle") {
+      toggleHits++;
+      res.writeHead(204).end();
+      return;
+    }
+    if (req.url === "/settings") {
+      // チェックを切り替えると、GET の通信で設定を書き換える作りのページ。
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      res.end(`<!doctype html><html lang="ja"><title>設定</title><body><h1>設定</h1>
+        <label><input id="notify" type="checkbox" onchange="fetch('/toggle')"> 通知を受け取る</label>
+        <label><input id="beacon" type="checkbox" onchange="new Image().src = '/toggle'; navigator.sendBeacon('/toggle')"> 画像と送信用の API で切り替える</label>
+        <label><input id="framed" type="checkbox" onchange="const f = document.createElement('iframe'); f.src = '/toggle'; document.body.append(f)"> iframe で切り替える</label></body></html>`);
+      return;
+    }
+    if (req.url === "/members") {
+      // セッションの Cookie を持っているときだけ、会員向けの内容を返す。
+      const loggedIn = /(^|;\s*)session=valid(;|$)/.test(req.headers.cookie ?? "");
+      if (!loggedIn) {
+        res.writeHead(302, { location: "/login" }).end();
+        return;
+      }
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      res.end(`<!doctype html><html lang="ja"><title>会員ページ</title><body><h1 id="members">会員ページ</h1><p>ログイン後の内容です。</p></body></html>`);
+      return;
+    }
+    if (req.url === "/login") {
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      res.end(`<!doctype html><html lang="ja"><title>ログイン</title><body><h1 id="login">ログイン</h1><p>ログインしてください。</p></body></html>`);
       return;
     }
     if (req.url === "/pixel") {
@@ -81,10 +117,11 @@ test("起動時の引数: ホストの一覧、file: の範囲、無効化を読
     fileRoot: "/srv/site",
     allowFile: false,
     autoInstall: true,
+    storageState: null,
   });
   assert.equal(parseArgs(["--no-auto-install"], {}).settings.autoInstall, false);
   assert.equal(parseArgs([], { KIKORI_NO_AUTO_INSTALL: "1" }).settings.autoInstall, false);
-  assert.deepEqual(parseArgs([], {}).settings, { lang: "en", allowedHosts: LOOPBACK_HOSTS, allowedFrameHosts: [], fileRoot: null, allowFile: true, autoInstall: true });
+  assert.deepEqual(parseArgs([], {}).settings, { lang: "en", allowedHosts: LOOPBACK_HOSTS, allowedFrameHosts: [], fileRoot: null, allowFile: true, autoInstall: true, storageState: null });
   // * を指定したときだけ、すべてのホストを開く。
   assert.equal(parseArgs(["--allow-host", "*"], {}).settings.allowedHosts, null);
   assert.equal(parseArgs([], { KIKORI_ALLOWED_HOSTS: "*" }).settings.allowedHosts, null);
@@ -242,8 +279,89 @@ test("file: のページは、許可したディレクトリの外のファイ�
   assert.equal(framed.text.trim(), "");
 });
 
+test("ログイン済みの状態: 指定すると、ログイン後のページを開ける", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "kikori-state-"));
+  const file = path.join(dir, "state.json");
+  writeFileSync(
+    file,
+    JSON.stringify({
+      cookies: [{ name: "session", value: "valid", domain: "127.0.0.1", path: "/", expires: -1, httpOnly: true, secure: false, sameSite: "Lax" }],
+      origins: [],
+    }),
+  );
+  const heading = (): Promise<string> =>
+    withPage({ url: `http://127.0.0.1:${port}/members`, viewport: { width: 800, height: 600 } }, (page) => page.locator("h1").innerText());
+
+  configure(settings([`127.0.0.1:${port}`]));
+  assert.equal(await heading(), "ログイン");
+
+  configure({ ...settings([`127.0.0.1:${port}`]), storageState: file });
+  assert.equal(await heading(), "会員ページ");
+  const audited = await checkReflow({ url: `http://127.0.0.1:${port}/members` });
+  assert.equal(audited.check, "reflow");
+
+  // ログイン状態では、ページ内のリンクを自動ではたどらない。
+  const site = await auditSite({ url: `http://127.0.0.1:${port}/members` });
+  assert.ok(site.notes?.some((note) => /リンクは自動ではたどっていません/.test(note)));
+});
+
+test("ログイン済みの状態: 開いてよいホストに属さない Cookie とローカルストレージは持ち込まない", () => {
+  const state = {
+    cookies: [
+      { name: "a", domain: "app.example.com", secure: true },
+      { name: "b", domain: ".example.com", secure: true },
+      { name: "c", domain: "tracker.test", secure: false },
+      { name: "d", domain: "localhost", secure: false },
+    ],
+    origins: [{ origin: "https://app.example.com" }, { origin: "https://tracker.test" }],
+  };
+  const only = (hosts: string[] | null): { cookies: string[]; origins: string[] } => {
+    const filtered = filterStorageState(state, settings(hosts));
+    return { cookies: filtered.cookies.map((c) => c.name), origins: filtered.origins.map((o) => o.origin) };
+  };
+  // .example.com の Cookie は app.example.com にも送られるので、残す。
+  assert.deepEqual(only(["app.example.com"]), { cookies: ["a", "b"], origins: ["https://app.example.com"] });
+  assert.deepEqual(only(["*.example.com"]), { cookies: ["a", "b"], origins: ["https://app.example.com"] });
+  assert.deepEqual(only(["other.example.com"]), { cookies: ["b"], origins: [] });
+  // ポートつきの指定でも、Cookie はホスト名で照合する。
+  assert.deepEqual(only(["localhost:3000"]), { cookies: ["d"], origins: [] });
+  assert.deepEqual(only(["example.org"]), { cookies: [], origins: [] });
+  // すべてのホストを許可しているときは、そのまま使う。
+  assert.equal(only(null).cookies.length, 4);
+});
+
+test("ログイン済みの状態: 操作を試す間は、スクリプトからの通信を止める", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "kikori-state-"));
+  const file = path.join(dir, "state.json");
+  writeFileSync(file, JSON.stringify({ cookies: [{ name: "session", value: "valid", domain: "127.0.0.1", path: "/", expires: -1, httpOnly: true, secure: false, sameSite: "Lax" }], origins: [] }));
+  const url = `http://127.0.0.1:${port}/settings`;
+
+  // 状態を読み込んでいなければ、チェックの切り替えで通信が届く。
+  // iframe の読み込みも許可して、iframe を使う経路まで確かめる。
+  configure(settings([`127.0.0.1:${port}`], ["self"]));
+  toggleHits = 0;
+  await checkInteraction({ url });
+  assert.ok(toggleHits >= 3);
+
+  configure({ ...settings([`127.0.0.1:${port}`], ["self"]), storageState: file });
+  toggleHits = 0;
+  const frozen = await checkInteraction({ url });
+  assert.equal(toggleHits, 0);
+  assert.match(frozen.notes?.join("\n") ?? "", /通信をすべて止めました/);
+});
+
+test("ログイン済みの状態: ファイルを読めないときは、起動時に知らせる", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "kikori-state-"));
+  const broken = path.join(dir, "broken.json");
+  writeFileSync(broken, "not json");
+  const ja = { KIKORI_LANG: "ja" };
+  assert.throws(() => parseArgs(["--storage-state", path.join(dir, "missing.json")], ja), /--storage-state のファイルを読めません/);
+  assert.throws(() => parseArgs(["--storage-state", broken], ja), /--storage-state のファイルを読めません/);
+  assert.throws(() => parseArgs([], { KIKORI_STORAGE_STATE: broken }), /Cannot read the --storage-state file/);
+});
+
 test("宛先の制限: file: の URL を無効にできる", () => {
-  configure({ lang: "ja", allowedHosts: null, allowedFrameHosts: [], fileRoot: null, allowFile: false, autoInstall: true });
+  configure({ lang: "ja", allowedHosts: null, allowedFrameHosts: [], fileRoot: null, allowFile: false, autoInstall: true, storageState: null });
   const fixture = new URL("../../test/fixtures/good.html", import.meta.url).href;
   assert.throws(() => assertAllowedUrl(fixture), /受け付けない設定/);
   configure(original);

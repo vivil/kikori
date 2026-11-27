@@ -159,6 +159,7 @@ Results include screenshots and text from the page. So that a misled model canno
 | `--allow-frame-host <host>` | `KIKORI_ALLOWED_FRAME_HOSTS` | Host that iframes in the page may load. When omitted, every iframe load is blocked |
 | `--file-root <path>` | `KIKORI_FILE_ROOT` | Directory that `file` URLs may be opened from. Defaults to the directory the server was started in |
 | `--no-file` | `KIKORI_NO_FILE=1` | Refuse `file` URLs |
+| `--storage-state <path>` | `KIKORI_STORAGE_STATE` | File holding a logged-in state. Pages are opened with its cookies and local storage |
 | `--no-auto-install` | `KIKORI_NO_AUTO_INSTALL=1` | Do not download the browser automatically when it is missing |
 
 With no options, only servers on your own machine (`localhost`, `*.localhost`, `127.0.0.1`, `[::1]`) can be audited. Auditing a site under development needs no configuration.
@@ -211,6 +212,32 @@ claude mcp add kikori -- npx -y kikori --allow-host localhost:3000 --allow-frame
 `--allow-frame-host` is a separate list from `--allow-host`. Allowing a video host as an iframe does not make that host auditable directly.
 
 Only `.html`, `.htm` and `.xhtml` files inside the allowed directory may be opened through `file` URLs.
+
+### Pages behind a login
+
+To audit pages that need a login, save a logged-in state to a file and pass it with `--storage-state`. The file uses Playwright's storageState format: cookies and local storage.
+
+One way to create it is Playwright's code generator. It opens a browser; log in there, then close the window.
+
+```sh
+npx playwright codegen --save-storage=auth.json https://app.example.com/login
+```
+
+Then start kikori with the file and the host.
+
+```sh
+claude mcp add kikori -- npx -y kikori --allow-host app.example.com --storage-state /path/to/auth.json
+```
+
+Keep the following in mind.
+
+- The file holds session cookies. Treat it like a password and keep it out of version control.
+- Use a test account. Results contain the text and screenshots of what that account can see, and they are handed to the model.
+- Only cookies and local storage that belong to a host listed in `--allow-host` are loaded. The rest of the file is ignored.
+- The session can be used to act as that account. While `check_interaction` tries key presses, hover and input changes with a login state loaded, it blocks every request and closes open WebSockets, so nothing can be triggered with the account's rights. Hover content that is fetched over the network is not detected in that mode.
+- With a login state loaded, `audit_site` does not follow links on its own, because a link may log the account out or delete something. List the pages to audit in `urls`.
+- A site that changes state when a page is merely loaded with GET can still be affected by the pages you list.
+- kikori reads the file and never updates it. When the session expires, pages redirect to the login screen again; create the file anew.
 
 ## Input
 
@@ -267,7 +294,7 @@ There are two severities.
 - Iframe loads are blocked by default. Even when allowed with `--allow-frame-host`, elements inside iframes are outside the axe and focus checks.
 - Line length is an estimate that counts a CJK character as 1em and a Latin character as 0.5em.
 - `audit_page` works on one page. Criteria that compare pages, such as 3.2.3 and 3.2.4, come back as `manual`; use `audit_site` for those.
-- `audit_site` follows only the links on the start page. Pages behind a login and screens that appear after an action cannot be audited.
+- `audit_site` follows only the links on the start page. Screens that appear after an action cannot be audited. Pages behind a login need `--storage-state`, and then the pages have to be listed in `urls`.
 - 4.1.1 is treated as always satisfied for HTML content, per the WCAG 2.1 errata.
 - When a page has no media or no form fields, the related criteria are presumed not to apply. Elements loaded later may be missed.
 - `check_interaction` blocks navigation requests and non-GET requests while it operates the page. It does not change data on the server, but a site that changes state on GET may still be affected.
