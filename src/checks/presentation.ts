@@ -1,5 +1,6 @@
 import { tr } from "../../packages/core/src/i18n.js";
 import { withPage } from "../browser.js";
+import { changedRegions, decodePng, type Region } from "../pixels.js";
 import { SC, summarize, type CheckResult, type Finding } from "../../packages/core/src/types.js";
 import type { ElementInfo } from "../helpers.js";
 
@@ -9,6 +10,8 @@ export interface PresentationOptions {
   height?: number;
   waitForSelector?: string;
   waitMs?: number;
+  /** 画面を撮り比べて、宣言のない動きを探すか。5 秒待つので、省くと速くなる。既定値は true。 */
+  motion?: boolean;
 }
 
 interface SmallTarget extends ElementInfo {
@@ -43,11 +46,17 @@ interface MovingElement extends ElementInfo {
 
 const MAX_REPORTED = 15;
 const MIN_TARGET = 44;
+/** 読み込みからこの時間が過ぎたあとの動きを調べる (ミリ秒) */
+const MOTION_AFTER_MS = 5000;
+/** 撮り比べる枚数と、その間隔 (ミリ秒) */
+const MOTION_FRAMES = 3;
+const MOTION_INTERVAL_MS = 400;
 
 export async function checkPresentation(options: PresentationOptions): Promise<CheckResult> {
   const viewport = { width: options.width ?? 1280, height: options.height ?? 720 };
 
   return withPage({ ...options, viewport }, async (page) => {
+    const loadedAt = Date.now();
     const findings: Finding[] = [];
     const notes: string[] = [];
     const report = await page.evaluate(collectStatic, MIN_TARGET);
@@ -164,6 +173,40 @@ export async function checkPresentation(options: PresentationOptions): Promise<C
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.waitForTimeout(100);
     const moving = await page.evaluate(collectMoving);
+
+    // 宣言のない動き (スクリプトによる書き換え、動画、GIF、canvas) は、画面を撮り比べて見つける。
+    // 2.2.2 が問題にするのは 5 秒を超えて続く動きなので、読み込みから 5 秒が過ぎるのを待つ。
+    const regions: Region[] = [];
+    if (options.motion === false) {
+      notes.push(
+        tr(
+          "motion に false が指定されたため、画面の撮り比べは行っていません。スクリプト、動画、GIF、canvas による動きは、2.2.2 の検査に含まれていません。",
+          "motion was set to false, so screenshots were not compared. Motion made by scripts, videos, GIFs and canvas is not covered by the 2.2.2 check.",
+        ),
+      );
+    } else {
+      await page.waitForTimeout(Math.max(0, MOTION_AFTER_MS - (Date.now() - loadedAt)));
+      const frames = [];
+      for (let i = 0; i < MOTION_FRAMES; i++) {
+        if (i > 0) await page.waitForTimeout(MOTION_INTERVAL_MS);
+        frames.push(decodePng(await page.screenshot({ type: "png", caret: "hide" })));
+      }
+      for (let i = 1; i < frames.length; i++) regions.push(...changedRegions(frames[i - 1]!, frames[i]!));
+    }
+    const undeclared = await page.evaluate(locateMotion, { regions: regions.slice(0, 60), declared: moving.map((m) => m.selector) });
+    for (const el of undeclared.slice(0, MAX_REPORTED)) {
+      findings.push({
+        sc: SC.pauseStopHide,
+        severity: "review",
+        selector: el.selector,
+        message: tr(
+          "読み込みから 5 秒を過ぎても、この部分の表示が変わり続けています。ほかの内容と並んで表示される場合は、一時停止、停止、非表示のいずれかの手段があるか確認してください。",
+          "This part of the page is still changing more than 5 seconds after load. If it is shown alongside other content, check that it can be paused, stopped or hidden.",
+        ),
+        details: { detectedBy: "frames", tag: el.tag, region: el.region, text: el.text },
+      });
+    }
+
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.waitForTimeout(100);
     const stillMoving = new Set((await page.evaluate(collectMoving)).map((m) => m.selector));
@@ -174,7 +217,7 @@ export async function checkPresentation(options: PresentationOptions): Promise<C
         severity: "review",
         selector: el.selector,
         message: tr(`${el.durationMs === null ? "終わりのない" : `${Math.round(el.durationMs / 1000)} 秒続く`}アニメーションが自動で動いています。ほかの内容と並んで表示される場合は、一時停止、停止、非表示のいずれかの手段が必要です。`, `${el.durationMs === null ? "An endless animation" : `An animation lasting ${Math.round(el.durationMs / 1000)} seconds`} starts automatically. If it is shown alongside other content, a way to pause, stop or hide it is required.`),
-        details: { durationMs: el.durationMs, stopsWithReducedMotion: respects, text: el.text },
+        details: { detectedBy: "declared", durationMs: el.durationMs, stopsWithReducedMotion: respects, text: el.text },
       });
     }
 
@@ -321,6 +364,24 @@ function collectStatic(minTarget: number): StaticReport {
   const hasFormControls = document.querySelector("input:not([type='hidden']), select, textarea, [contenteditable]") !== null;
 
   return { smallTargets, crowdedTargets, textBlocks, autoplay, hasMedia, hasFormControls, missingAutocomplete };
+}
+
+/**
+ * ブラウザ側で実行する。変化した範囲にある要素を返す。
+ * すでにアニメーションの宣言から見つけた要素と、その内側や外側の要素は除く。
+ */
+function locateMotion(input: { regions: Region[]; declared: string[] }): (ElementInfo & { tag: string; region: Region })[] {
+  const kikori = window.__kikori;
+  const declared = input.declared.map((selector) => document.querySelector(selector)).filter((el): el is Element => el !== null);
+  const found = new Map<Element, Region>();
+  for (const region of input.regions) {
+    const el = document.elementFromPoint(region.x + region.width / 2, region.y + region.height / 2);
+    if (!el || el === document.documentElement || el === document.body) continue;
+    if (declared.some((known) => known.contains(el) || el.contains(known))) continue;
+    if ([...found.keys()].some((known) => known.contains(el) || el.contains(known))) continue;
+    found.set(el, region);
+  }
+  return Array.from(found, ([el, region]) => ({ ...kikori.describe(el), tag: el.tagName.toLowerCase(), region }));
 }
 
 /** ブラウザ側で実行する。5 秒を超えて動き続ける要素を返す。 */

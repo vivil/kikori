@@ -24,6 +24,8 @@ export interface AuditOptions {
   judgments?: Judgment[];
   waitForSelector?: string;
   waitMs?: number;
+  /** 画面を撮り比べて、宣言のない動きを探すか。既定値は true。 */
+  motion?: boolean;
 }
 
 /**
@@ -61,14 +63,15 @@ export interface AuditResult {
 export async function auditPage(options: AuditOptions): Promise<AuditResult> {
   const level = options.level ?? "AA";
   const version = options.wcag ?? "2.2";
-  const raw = [
-    await checkAxe({ ...options, level, wcag: version }),
-    await checkReflow(options),
-    await checkTextSpacing(options),
-    await checkKeyboardFocus(options),
-    await checkPresentation(options),
-    await checkInteraction(options),
-  ];
+  // 見た目の検査は、動きを調べるために読み込みから 5 秒待つ。その間にほかの検査を進める。
+  const presentation = checkPresentation(options);
+  presentation.catch(() => undefined);
+  const axe = await checkAxe({ ...options, level, wcag: version });
+  const reflow = await checkReflow(options);
+  const textSpacing = await checkTextSpacing(options);
+  const focus = await checkKeyboardFocus(options);
+  const interaction = await checkInteraction(options);
+  const raw = [axe, reflow, textSpacing, focus, await presentation, interaction];
 
   // 目標のレベルを超える達成基準の指摘は、判定にも一覧にも含めない。
   const results = raw.map((result) => limitToLevel(result, level));

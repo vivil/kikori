@@ -123,6 +123,37 @@ test("提示: 小さいターゲット、文章の体裁、動き続ける要素
   assert.ok(result.inapplicable?.includes("1.2.2"));
 });
 
+test("キーボード: 動き続ける要素では、その動きを差し引いてフォーカス表示を見分ける", async () => {
+  const result = await checkKeyboardFocus({ url: fixture("focus-motion.html") });
+  const visible = result.findings.filter((f) => f.sc.id === "2.4.7");
+  // 表示のないボタンは、中の印が動いていても、表示ありとは扱わない。
+  assert.deepEqual(visible.filter((f) => f.selector === "#no-ring").map((f) => f.severity), ["review"]);
+  // 外側に出る表示は、動きの外にあるので見分けられる。
+  assert.ok(!visible.some((f) => f.selector === "#with-ring"));
+  assert.ok(!visible.some((f) => f.selector === "#quiet"));
+});
+
+test("見た目: 宣言のない動きを、画面の撮り比べから見つける", async () => {
+  const result = await checkPresentation({ url: fixture("motion-bad.html") });
+  const moving = result.findings.filter((f) => f.sc.id === "2.2.2");
+  // スクリプトが書き換え続ける部分は、撮り比べで見つかる。
+  const ticker = moving.find((f) => f.selector === "#ticker");
+  assert.equal(ticker?.severity, "review");
+  assert.equal(ticker?.details?.detectedBy, "frames");
+  // CSS のアニメーションは宣言から見つかり、撮り比べの側では重ねて報告しない。
+  assert.deepEqual(moving.filter((f) => f.selector === "#spinner").map((f) => f.details?.detectedBy), ["declared"]);
+  assert.ok(!moving.some((f) => f.selector === "#still"));
+
+  // 呼び出すときに撮り比べを省くと、宣言のある動きだけを報告し、省いたことを知らせる。
+  const skipped = await checkPresentation({ url: fixture("motion-bad.html"), motion: false });
+  assert.deepEqual(skipped.findings.filter((f) => f.sc.id === "2.2.2").map((f) => f.selector), ["#spinner"]);
+  assert.ok(skipped.notes?.some((note) => /撮り比べは行っていません/.test(note)));
+
+  // 動きのないページでは、何も報告しない。
+  const quiet = await checkPresentation({ url: fixture("good.html") });
+  assert.ok(!quiet.findings.some((f) => f.sc.id === "2.2.2"));
+});
+
 test("監査: 全達成基準の状態を返し、適合とは判定しない", async () => {
   const aa = await auditPage({ url: fixture("good.html") });
   // 既定の対象は WCAG 2.2。レベル AA までで 55 件ある。

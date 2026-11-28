@@ -26,7 +26,7 @@ The name comes from the lumberjack who swings the axe: kikori uses axe-core as o
 | `check_reflow` | 1.4.10 Reflow | Renders at 320px wide and detects horizontal scrolling, overflowing elements and clipped text |
 | `check_text_spacing` | 1.4.12 Text Spacing | Widens line height and spacing, compares before and after, and detects clipped or overlapping text |
 | `check_keyboard_focus` | 2.1.1 / 2.1.2 / 2.4.3 / 2.4.7 / 2.4.11 / 2.4.12 / 2.4.13 / 3.2.1 | Tabs through the page and checks focus order, focus indicators, obscured focus, traps and context changes on focus |
-| `check_presentation` | 2.5.5 / 2.5.8 / 1.4.8 / 2.2.2 / 1.4.2 / 1.3.5 | Detects small or crowded targets, hard-to-read text layout, long-running animation, autoplaying sound and fields without autocomplete |
+| `check_presentation` | 2.5.5 / 2.5.8 / 1.4.8 / 2.2.2 / 1.4.2 / 1.3.5 | Detects small or crowded targets, hard-to-read text layout, content that keeps moving, autoplaying sound and fields without autocomplete |
 | `check_interaction` | 1.4.13 / 2.1.4 / 3.2.2 / 2.5.1 / 2.5.2 / 2.5.4 / 2.5.7 / 3.3.8 / 1.4.11 / 2.3.1 / 4.1.3 | Tries hover, character keys and input changes, and inspects event listeners, boundary contrast, dragging and obstacles to authentication |
 | `collect_evidence` | Criteria that need a look at the content | Returns the question to answer, the failure condition, the evidence and a full-page screenshot |
 | `capture_screenshot` | - | Returns a screenshot of the page or an element, for a closer look |
@@ -277,6 +277,7 @@ Every tool requires `url`, which may be an `http`, `https` or `file` URL.
 | `level` | `audit_site`, `audit_page`, `check_axe` | Target conformance level (`A`, `AA`, `AAA`). Default `AA` |
 | `wcag` | `audit_site`, `audit_page`, `check_axe` | WCAG version (`2.2` or `2.1`). Default `2.2` |
 | `judgments` | `audit_site`, `audit_page` | Judgments made by a model or a person |
+| `motion` | `audit_site`, `audit_page`, `check_presentation` | Whether to compare screenshots to find moving content. Default `true`; `false` skips the 5-second wait |
 | `criteria` / `screenshot` | `collect_evidence` | Criteria to gather material for, and whether to attach a screenshot |
 | `selector` / `fullPage` | `capture_screenshot` | Element to capture, and whether to capture the full page |
 | `width` / `height` | Individual checks | Viewport size. Default 320 × 256 for reflow, 1280 × 720 otherwise |
@@ -316,7 +317,7 @@ There are two severities.
 
 - Reflow compares 320px wide against a 1280px baseline. Text that is already clipped at the baseline is not reported.
 - Text spacing compares before and after the style override. Text that already overlaps is not reported.
-- Focus indicators are detected by comparing a screenshot taken while focused with one taken right after blurring. Because focus is removed once along the way, results can be off on pages that show a validation error on `blur`.
+- Focus indicators are detected by comparing a screenshot taken while focused with one taken right after blurring. Because focus is removed once along the way, results can be off on pages that show a validation error on `blur`. On a page where something keeps moving (scripts, videos, GIFs), kikori takes one more screenshot without focus and leaves the moving part out of the comparison. When the whole element keeps moving, it cannot tell and reports the element for review. A change that happens to fall between the screenshots can still be missed.
 - Iframe loads are blocked by default. Even when allowed with `--allow-frame-host`, elements inside iframes are outside the axe and focus checks.
 - Line length is an estimate that counts a CJK character as 1em and a Latin character as 0.5em.
 - `audit_page` works on one page. Criteria that compare pages, such as 3.2.3 and 3.2.4, come back as `manual`; use `audit_site` for those.
@@ -325,6 +326,7 @@ There are two severities.
 - The checks for the criteria added in WCAG 2.2 are heuristics. 2.4.13 is judged from the `outline` style, not from the pixels of the indicator. 3.3.8 looks for password fields and common CAPTCHA markup, and does not follow a login flow.
 - When a page has no media or no form fields, the related criteria are presumed not to apply. Elements loaded later may be missed.
 - `check_interaction` blocks navigation requests and non-GET requests while it operates the page. It does not change data on the server, but a site that changes state on GET may still be affected.
+- Moving content (2.2.2) is found in two ways: from the animations the page declares with CSS or the Web Animations API, and by comparing screenshots taken more than 5 seconds after load. The second way also catches changes made by scripts, videos, GIFs and canvas. It only sees the part of the page inside the viewport, and it cannot tell whether the content can be paused, so every finding is for review. `check_presentation` therefore takes about 6 seconds. `audit_page` runs it alongside the other checks, which adds about 2 seconds per page. Pass `motion: false` to skip the comparison when speed matters more; the result then says so in `notes`.
 - Hover content is detected only if it appears within 250 milliseconds. Native tooltips from the `title` attribute are out of scope.
 - Detection of framework event handlers has been verified with React, Vue and Angular samples. React receives events in one place, so handlers are read from internal properties on the elements. With a framework built the same way whose properties cannot be read, 2.5.1 and 2.5.2 become `needs_judgment`.
 - Pointer handlers registered directly on `window` are not detected, because they cannot be told apart from the ones Playwright registers there.

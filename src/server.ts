@@ -72,6 +72,15 @@ export function createServer(): McpServer {
     .enum(["2.1", "2.2"])
     .optional()
     .describe(tr("対象とする WCAG のバージョン。既定値は 2.2。", "WCAG version to audit against. Default 2.2."));
+  const motion = z
+    .boolean()
+    .optional()
+    .describe(
+      tr(
+        "画面を撮り比べて、スクリプト、動画、GIF、canvas による動き (2.2.2) を探すか。読み込みから 5 秒待つので、false にすると 1 ページあたり約 2 秒 (check_presentation では約 6 秒) 速くなる。既定値は true。",
+        "Whether to compare screenshots to find motion made by scripts, videos, GIFs and canvas (2.2.2). It waits 5 seconds after load, so false saves about 2 seconds per page (about 6 seconds in check_presentation). Default true.",
+      ),
+    );
   const judgments = z
     .array(
       z.object({
@@ -163,10 +172,10 @@ export function createServer(): McpServer {
     {
       title: tr("ターゲットのサイズ・視覚的提示・動きの検査 (WCAG 2.5.5 / 2.5.8 / 1.4.8 / 2.2.2 / 1.4.2 / 1.3.5)", "Target size, visual presentation and motion check (WCAG 2.5.5 / 2.5.8 / 1.4.8 / 2.2.2 / 1.4.2 / 1.3.5)"),
       description: tr(
-        "押せる範囲が 44 × 44px に届かない操作部品、24 × 24px に届かず隣との間隔も足りない操作部品、両端揃えや行の高さ・行の長さが基準を外れる文章、5 秒を超えて動き続けるアニメーション、音声つきの自動再生、autocomplete のない個人情報の入力欄を検出する。2.5.5 と 1.4.8 はレベル AAA、2.5.8 は WCAG 2.2 のレベル AA の達成基準。",
-        "Detects controls whose target is smaller than 44 × 44px, controls below 24 × 24px that are also too close to a neighbour, text that is justified or whose line height or line length is out of range, animations that keep moving for more than 5 seconds, autoplaying media with sound, and personal-data fields without autocomplete. 2.5.5 and 1.4.8 are Level AAA criteria; 2.5.8 is a Level AA criterion of WCAG 2.2.",
+        "押せる範囲が 44 × 44px に届かない操作部品、24 × 24px に届かず隣との間隔も足りない操作部品、両端揃えや行の高さ・行の長さが基準を外れる文章、5 秒を超えて動き続けるアニメーションや表示 (アニメーションの宣言と、5 秒後に撮り比べた画面から見つける)、音声つきの自動再生、autocomplete のない個人情報の入力欄を検出する。2.5.5 と 1.4.8 はレベル AAA、2.5.8 は WCAG 2.2 のレベル AA の達成基準。",
+        "Detects controls whose target is smaller than 44 × 44px, controls below 24 × 24px that are also too close to a neighbour, text that is justified or whose line height or line length is out of range, animations and other content that keep moving for more than 5 seconds (found from the declared animations and by comparing screenshots taken after 5 seconds), autoplaying media with sound, and personal-data fields without autocomplete. 2.5.5 and 1.4.8 are Level AAA criteria; 2.5.8 is a Level AA criterion of WCAG 2.2.",
       ),
-      inputSchema: { ...common, ...viewport },
+      inputSchema: { ...common, ...viewport, motion },
       annotations,
     },
     (args) => respond(() => checkPresentation(args)),
@@ -248,7 +257,7 @@ export function createServer(): McpServer {
         "axe-core とこのサーバーの全検査を実行し、WCAG 2.2 (wcag で 2.1 も選べる) の目標レベルまでの全達成基準について状態を返す。criteria に達成基準ごとの状態が入る。fail は不適合、review は確認が必要な箇所あり、needs_judgment は内容を見た判断が必要、no_issue_found は自動検査の範囲で問題なし、inapplicable は対象の要素がなく該当しないと推定、manual は材料を集める手段がなく人の確認が必要。needs_judgment と review の達成基準は、collect_evidence で材料を集めて判断し、judgments に渡して再実行すると judged_pass などに変わる。conformance.verdict は、不適合があれば nonconformant、確認が残っていれば undetermined、すべて解消すれば no_failure_found になる。",
         "Runs axe-core and every check in this server, and returns a status for every WCAG 2.2 success criterion up to the target level (set wcag to audit against 2.1 instead). criteria holds the status of each one: fail is a failure, review has spots that need checking, needs_judgment requires a look at the content, no_issue_found means nothing was found within what automation covers, inapplicable means no relevant element was found so it is presumed not to apply, and manual means no material can be gathered and a person must check. For needs_judgment and review, gather material with collect_evidence, decide, and run again with judgments to turn them into judged_pass and so on. conformance.verdict is nonconformant when there is a failure, undetermined while anything is open, and no_failure_found once everything is resolved.",
       ),
-      inputSchema: { ...common, level, wcag, judgments },
+      inputSchema: { ...common, level, wcag, judgments, motion },
       annotations,
     },
     (args) => respond(() => auditPage(args)),
@@ -278,6 +287,7 @@ export function createServer(): McpServer {
         level,
         wcag,
         judgments,
+        motion,
       },
       annotations,
     },
