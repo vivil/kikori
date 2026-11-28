@@ -1,0 +1,664 @@
+/*
+ * kikori: the colours of the logo, carried through the page.
+ * Bark and sapwood come from the mark. Steel is the axe head, moss and resin are what grows on the wood.
+ */
+:root {
+  --bark: #4a2e17;
+  --heartwood: #24150a;
+  --sapwood: #f7ebd6;
+  --face: #fbf3e2;
+  --steel: #2f5d73;
+  --moss: #4e6b2a;
+  --resin: #b5651d;
+  --measure: 62ch;
+  --lily-font-sans: "LINE Seed JP", "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", Meiryo, system-ui, sans-serif;
+}
+
+:root,
+:root:not([data-theme]),
+:root[data-theme="light"] {
+  --lily-color-bg-canvas: #f7ebd6;
+  --lily-color-bg-surface: #fcf5e6;
+  --lily-color-bg-subtle: #f0e0c4;
+  --lily-color-bg-muted: #e5d2b0;
+  --lily-color-fg-default: #2e1b0c;
+  --lily-color-fg-muted: #553a23;
+  --lily-color-fg-subtle: #664a30;
+  --lily-color-border-default: #cdb48b;
+  --lily-color-border-strong: #8a6a45;
+  --lily-color-primary: #4a2e17;
+  --lily-color-primary-hover: #3a2310;
+  --lily-color-primary-active: #2e1b0c;
+  --lily-color-on-primary: #f7ebd6;
+  --lily-color-primary-text: #1d4a5c;
+  --lily-color-focus-ring: #1d4a5c;
+  --lily-color-border-focus: #1d4a5c;
+  --link: #1d4a5c;
+  --band-bark-bg: #4a2e17;
+  --band-bark-fg: #f7ebd6;
+  --band-bark-muted: #ead7b6;
+  --band-bark-link: #c9e4ee;
+  --stump-bark: #4a2e17;
+  --kerf: #4a2e17;
+  --ring-judged: #b5651d;
+  --ring-automatic: #4e6b2a;
+  --ring-axe: #2f5d73;
+}
+
+:root[data-theme="dark"] {
+  --lily-color-bg-canvas: #24150a;
+  --lily-color-bg-surface: #2f1c0e;
+  --lily-color-bg-subtle: #3a2413;
+  --lily-color-bg-muted: #4a2e17;
+  --lily-color-fg-default: #f7ebd6;
+  --lily-color-fg-muted: #e6d3b3;
+  --lily-color-fg-subtle: #d4bd97;
+  --lily-color-border-default: #5d3d21;
+  --lily-color-border-strong: #a98759;
+  --lily-color-primary: #f7ebd6;
+  --lily-color-primary-hover: #fffaf0;
+  --lily-color-primary-active: #ead7b6;
+  --lily-color-on-primary: #24150a;
+  --lily-color-primary-text: #b9dcea;
+  --lily-color-focus-ring: #b9dcea;
+  --lily-color-border-focus: #b9dcea;
+  --link: #b9dcea;
+  --band-bark-bg: #3a2413;
+  --band-bark-fg: #f7ebd6;
+  --band-bark-muted: #e6d3b3;
+  --band-bark-link: #b9dcea;
+  --stump-bark: #8a5a30;
+  --kerf: #d4bd97;
+  --ring-judged: #e59a4c;
+  --ring-automatic: #a9c77a;
+  --ring-axe: #8fc0d4;
+}
+
+/* With no explicit choice, follow the system. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --lily-color-bg-canvas: #24150a;
+    --lily-color-bg-surface: #2f1c0e;
+    --lily-color-bg-subtle: #3a2413;
+    --lily-color-bg-muted: #4a2e17;
+    --lily-color-fg-default: #f7ebd6;
+    --lily-color-fg-muted: #e6d3b3;
+    --lily-color-fg-subtle: #d4bd97;
+    --lily-color-border-default: #5d3d21;
+    --lily-color-border-strong: #a98759;
+    --lily-color-primary: #f7ebd6;
+    --lily-color-primary-hover: #fffaf0;
+    --lily-color-primary-active: #ead7b6;
+    --lily-color-on-primary: #24150a;
+    --lily-color-primary-text: #b9dcea;
+    --lily-color-focus-ring: #b9dcea;
+    --lily-color-border-focus: #b9dcea;
+    --link: #b9dcea;
+    --band-bark-bg: #3a2413;
+    --band-bark-fg: #f7ebd6;
+    --band-bark-muted: #e6d3b3;
+    --band-bark-link: #b9dcea;
+    --stump-bark: #8a5a30;
+    --kerf: #d4bd97;
+    --ring-judged: #e59a4c;
+    --ring-automatic: #a9c77a;
+    --ring-axe: #8fc0d4;
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
+}
+
+body {
+  margin: 0;
+  background: var(--lily-color-bg-canvas);
+  color: var(--lily-color-fg-default);
+  font-family: var(--lily-font-sans);
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  text-rendering: optimizeLegibility;
+}
+
+:lang(ja) body,
+html:lang(ja) body {
+  line-height: 1.85;
+  line-break: strict;
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 800;
+  line-height: 1.18;
+  letter-spacing: -0.012em;
+  margin: 0;
+  text-wrap: balance;
+}
+
+html:lang(ja) :is(h1, h2, h3) {
+  line-height: 1.35;
+  letter-spacing: 0;
+  word-break: auto-phrase;
+}
+
+h1 {
+  font-size: clamp(2.1rem, 1.2rem + 3.6vw, 3.75rem);
+}
+
+html:lang(ja) h1 {
+  font-size: clamp(1.9rem, 1.1rem + 3vw, 3.1rem);
+}
+
+h2 {
+  font-size: clamp(1.6rem, 1.2rem + 1.6vw, 2.35rem);
+  max-width: 24ch;
+}
+
+html:lang(ja) h2 {
+  max-width: 22em;
+}
+
+h3 {
+  font-size: 1.125rem;
+  line-height: 1.4;
+}
+
+p {
+  margin: 0;
+  max-width: var(--measure);
+}
+
+html:lang(ja) p {
+  max-width: 36em;
+}
+
+main a:not([class]),
+.lily-link {
+  color: var(--link);
+  text-decoration-thickness: 0.09em;
+  text-underline-offset: 0.2em;
+}
+
+code {
+  font-family: var(--lily-font-mono);
+  font-size: 0.92em;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -4rem;
+  z-index: 100;
+  padding: 0.6rem 1rem;
+  background: var(--lily-color-fg-default);
+  color: var(--lily-color-bg-canvas);
+  border-radius: 0 0 0.5rem 0.5rem;
+  font-weight: 700;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
+/* Header */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--lily-color-bg-canvas);
+  border-bottom: 2px solid var(--kerf);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+}
+
+.brand__logo {
+  display: block;
+  height: 2.1rem;
+  width: auto;
+}
+
+.brand__logo--dark {
+  display: none;
+}
+
+[data-theme="dark"] .brand__logo--dark {
+  display: block;
+}
+
+[data-theme="dark"] .brand__logo--light {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .brand__logo--dark {
+    display: block;
+  }
+
+  :root:not([data-theme]) .brand__logo--light {
+    display: none;
+  }
+}
+
+.site-header .lily-navbar {
+  background: transparent;
+}
+
+.site-header .lily-navbar a:not(.lily-navbar__brand) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--lily-color-fg-default);
+  font-weight: 700;
+  text-decoration: none;
+  border-bottom: 3px solid transparent;
+}
+
+.site-header .lily-navbar a:not(.lily-navbar__brand):hover {
+  border-bottom-color: var(--kerf);
+}
+
+.theme-toggle {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+}
+
+/* Hero */
+.hero {
+  padding-block: clamp(2.5rem, 6vw, 5.5rem) clamp(2rem, 4vw, 3.5rem);
+}
+
+.hero__grid {
+  display: grid;
+  gap: clamp(2rem, 5vw, 4.5rem);
+  align-items: center;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+}
+
+.hero__lead {
+  margin-top: 1.5rem;
+  font-size: 1.1875rem;
+  color: var(--lily-color-fg-muted);
+}
+
+.install {
+  margin-top: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.5rem 0.5rem 0.5rem 1.1rem;
+  background: var(--bark);
+  color: var(--sapwood);
+  border-radius: 999px;
+  border: 2px solid var(--stump-bark);
+}
+
+.install__code {
+  overflow-x: auto;
+  white-space: nowrap;
+  font-size: 0.95rem;
+}
+
+.install__copy {
+  flex: none;
+  min-height: 2.75rem;
+  background: var(--sapwood);
+  color: var(--heartwood);
+  border-radius: 999px;
+}
+
+.hero__more {
+  margin-top: 1.25rem;
+}
+
+.hero__figure {
+  margin: 0;
+  display: grid;
+  gap: 1.5rem;
+  justify-items: start;
+}
+
+/* The stump */
+.rings {
+  width: min(100%, 26rem);
+  height: auto;
+  display: block;
+}
+
+.rings__bark {
+  fill: var(--stump-bark);
+}
+
+.rings__face {
+  fill: var(--face);
+}
+
+.rings__track {
+  fill: none;
+  stroke: #e7d6b6;
+  stroke-width: 26;
+}
+
+.rings__arc {
+  fill: none;
+  stroke-width: 26;
+  stroke-linecap: round;
+  animation: grow 1100ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: calc(var(--order) * 260ms + 250ms);
+}
+
+.rings__arc--axe {
+  stroke: var(--steel);
+}
+
+.rings__arc--automatic {
+  stroke: var(--moss);
+}
+
+.rings__arc--judged {
+  stroke: var(--resin);
+}
+
+.rings__pith {
+  fill: var(--bark);
+}
+
+.rings__cut {
+  fill: var(--stump-bark);
+  transform-box: view-box;
+  animation: strike 240ms cubic-bezier(0.3, 1.5, 0.5, 1) 1750ms both;
+}
+
+@keyframes grow {
+  from {
+    stroke-dashoffset: var(--v);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes strike {
+  from {
+    opacity: 0;
+    transform: translate(46px, -52px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rings-title {
+  font-size: 1.25rem;
+  max-width: none;
+}
+
+.legend {
+  list-style: none;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.legend__item {
+  display: grid;
+  grid-template-columns: 1.6rem 1fr auto;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+/* The swatch repeats the ring's place on the stump, so colour is not the only cue. */
+.legend__swatch {
+  justify-self: center;
+  border-radius: 50%;
+  border: 0.3rem solid;
+}
+
+.legend__item--judged .legend__swatch {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-color: var(--ring-judged);
+}
+
+.legend__item--automatic .legend__swatch {
+  width: 1.1rem;
+  height: 1.1rem;
+  border-color: var(--ring-automatic);
+}
+
+.legend__item--axe .legend__swatch {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-color: var(--ring-axe);
+}
+
+.legend__value {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.legend__count {
+  font-weight: 400;
+  color: var(--lily-color-fg-muted);
+}
+
+.rings-caption,
+.rings-note {
+  font-size: 0.9375rem;
+  color: var(--lily-color-fg-muted);
+}
+
+.rings-caption {
+  margin-top: 0.9rem;
+}
+
+.rings-note {
+  margin-top: clamp(2rem, 4vw, 3rem);
+  padding-top: 1.25rem;
+  border-top: 2px solid var(--kerf);
+  max-width: 78ch;
+}
+
+/* Sections */
+.band {
+  padding-block: clamp(3rem, 7vw, 6rem);
+}
+
+.band .lead {
+  margin-top: 1rem;
+  font-size: 1.1875rem;
+  color: var(--lily-color-fg-muted);
+}
+
+.band--sap {
+  background: var(--lily-color-bg-subtle);
+}
+
+.band--bark {
+  background: var(--band-bark-bg);
+  color: var(--band-bark-fg);
+}
+
+.band--bark .lead,
+.band--bark .steps p {
+  color: var(--band-bark-muted);
+}
+
+/* Six checks, split like kindling: a kerf on the left of each. */
+.grain {
+  list-style: none;
+  margin: clamp(2rem, 4vw, 3rem) 0 0;
+  padding: 0;
+  display: grid;
+  gap: 2rem 2.5rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.grain li {
+  padding-left: 1.1rem;
+  border-left: 4px solid var(--kerf);
+}
+
+.grain p {
+  margin-top: 0.4rem;
+  color: var(--lily-color-fg-muted);
+}
+
+/* Three steps in order. Each number sits in a growth ring. */
+.steps {
+  list-style: none;
+  counter-reset: step;
+  margin: clamp(2rem, 4vw, 3rem) 0 0;
+  padding: 0;
+  display: grid;
+  gap: 2.5rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.steps li {
+  counter-increment: step;
+}
+
+.steps li::before {
+  content: counter(step);
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  margin-bottom: 1rem;
+  border-radius: 50%;
+  border: 3px solid var(--band-bark-fg);
+  outline: 3px solid var(--band-bark-fg);
+  outline-offset: 5px;
+  font-weight: 800;
+  font-size: 1.25rem;
+}
+
+.steps p {
+  margin-top: 0.5rem;
+}
+
+.caution {
+  margin-top: clamp(2rem, 4vw, 3rem);
+  padding: 1rem 1.25rem;
+  border: 2px solid var(--band-bark-fg);
+  border-radius: 0.75rem;
+  max-width: 70ch;
+  font-weight: 700;
+}
+
+.tools {
+  margin-top: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+.tools th[scope="row"] {
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.start {
+  display: grid;
+  gap: clamp(2rem, 5vw, 4rem);
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  align-items: start;
+}
+
+.start > div > p + p {
+  margin-top: 1rem;
+}
+
+.start__panel {
+  display: grid;
+  gap: 1rem;
+  padding-top: 1.25rem;
+}
+
+.mobile {
+  display: grid;
+  gap: 1rem;
+}
+
+/* Footer */
+.site-footer {
+  border-top: 2px solid var(--kerf);
+}
+
+.site-footer__inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2.5rem;
+  justify-content: space-between;
+  align-items: center;
+  padding-block: 1.75rem;
+  font-size: 0.9375rem;
+}
+
+.site-footer ul {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  margin: 0;
+  padding: 0;
+}
+
+.site-footer a {
+  display: inline-block;
+  padding-block: 0.6rem;
+  color: var(--link);
+}
+
+@media (max-width: 62rem) {
+  .hero__grid,
+  .start {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .grain,
+  .steps {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rings {
+    width: min(100%, 20rem);
+  }
+}
+
+@media (min-width: 40rem) and (max-width: 62rem) {
+  .grain {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .rings__arc,
+  .rings__cut {
+    animation: none;
+  }
+}
