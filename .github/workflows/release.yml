@@ -13,6 +13,8 @@ permissions:
 
 jobs:
   publish:
+    # Tags that start with "mobile-v" belong to kikori-mobile and are handled by release-mobile.yml.
+    if: ${{ !startsWith(github.event.release.tag_name, 'mobile-v') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:

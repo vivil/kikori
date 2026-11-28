@@ -384,9 +384,11 @@ npm test
 
 ワークフローは npm の trusted publishing で認証するため、リポジトリに npm のトークンを置きません。タグが `package.json` のバージョンと一致しないときは、公開せずに止まります。
 
+kikori-mobile は、本体とは別にバージョンを付けて公開します。`packages/mobile/package.json` の `version` を更新し、`mobile-v` にそのバージョンを続けたタグ (`mobile-v0.1.0` など) でリリースを公開します。`packages/core` にある共通の核の動作が変わる変更では、`CORE_VERSION` を上げ、2 つのパッケージを同じ周期で公開します。
+
 ## 今後の予定
 
-- iOS と Android のアプリについて、読み上げ順やラベルを検査するツールを追加します。
+- モバイルアプリは、別の試験的なパッケージ [kikori-mobile](packages/mobile/README.ja.md) で扱います。いまは Android のアプリの画面を検査できます。文字を大きくしたときに切れる文字の検査と、iOS への対応を、そちらに追加する予定です。
 - 日本語の読み上げで起きやすい誤読の検出を追加します。
 
 ## ライセンス

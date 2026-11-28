@@ -384,9 +384,11 @@ Commit messages and pull request titles follow [Conventional Commits](https://ww
 
 The workflow authenticates with npm trusted publishing, so no npm token is stored in the repository. It stops if the tag does not match the version in `package.json`.
 
+kikori-mobile is versioned and released on its own. Update `version` in `packages/mobile/package.json` and publish a release whose tag is `mobile-v` followed by that version, such as `mobile-v0.1.0`. When a change alters the behaviour of the shared core in `packages/core`, raise `CORE_VERSION` and release both packages in the same cycle.
+
 ## Roadmap
 
-- Tools that check reading order and labels in iOS and Android apps.
+- Mobile apps are handled by a separate, experimental package, [kikori-mobile](packages/mobile/README.md), which checks the screen of an Android app. Planned there: text clipping at a larger font scale, and iOS.
 - Detection of misreadings that are common when Japanese text is read aloud.
 
 ## License

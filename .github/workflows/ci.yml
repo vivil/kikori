@@ -35,3 +35,5 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - run: npm test
+      # The mobile package needs neither a browser nor a device: its tests use saved hierarchies.
+      - run: npm test --workspace kikori-mobile
