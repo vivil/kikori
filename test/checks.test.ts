@@ -7,7 +7,7 @@ import { checkPresentation } from "../src/checks/presentation.js";
 import { checkReflow } from "../src/checks/reflow.js";
 import { checkTextSpacing } from "../src/checks/textSpacing.js";
 import { assertAllowedUrl } from "../src/browser.js";
-import type { CheckResult, Severity } from "../src/types.js";
+import type { CheckResult, Severity } from "../packages/core/src/types.js";
 
 // コンパイル後は dist/test に置かれるので、リポジトリ直下の test/fixtures を指す。
 const fixture = (name: string): string => new URL(`../../test/fixtures/${name}`, import.meta.url).href;

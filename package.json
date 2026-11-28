@@ -28,6 +28,7 @@
   },
   "files": [
     "dist/src",
+    "dist/packages/core/src",
     "README.md",
     "README.ja.md",
     "LICENSE"

@@ -8,7 +8,7 @@ import { checkPresentation } from "../src/checks/presentation.js";
 import { checkReflow } from "../src/checks/reflow.js";
 import { checkTextSpacing } from "../src/checks/textSpacing.js";
 import { configure, getSettings } from "../src/config.js";
-import type { CheckResult, Severity } from "../src/types.js";
+import type { CheckResult, Severity } from "../packages/core/src/types.js";
 
 const fixture = (name: string): string => new URL(`../../test/fixtures/${name}`, import.meta.url).href;
 const has = (result: CheckResult, sc: string, severity: Severity, selector: string): boolean =>

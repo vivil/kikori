@@ -1,4 +1,4 @@
-import { tr } from "./i18n.js";
+import { tr } from "../packages/core/src/i18n.js";
 import { readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";

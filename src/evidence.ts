@@ -1,7 +1,7 @@
 import { withPage } from "./browser.js";
 import { getSettings } from "./config.js";
-import { lang, tr } from "./i18n.js";
-import { criterion, type SuccessCriterion } from "./criteria.js";
+import { lang, tr } from "../packages/core/src/i18n.js";
+import { criterion, type SuccessCriterion } from "../packages/core/src/criteria.js";
 
 export interface EvidenceOptions {
   url: string;
