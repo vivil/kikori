@@ -30,7 +30,7 @@ interface StaticReport {
   /** 24 × 24px に届かず、周りとの間隔も足りないターゲット */
   crowdedTargets: SmallTarget[];
   textBlocks: TextBlock[];
-  autoplay: (ElementInfo & { hasControls: boolean })[];
+  autoplay: (ElementInfo & { hasControls: boolean; seconds: number | null; pageHasButtons: boolean })[];
   hasMedia: boolean;
   hasFormControls: boolean;
   /** 個人の情報を集めていそうなのに、autocomplete の指定がない入力欄 */
@@ -128,14 +128,25 @@ export async function checkPresentation(options: PresentationOptions): Promise<C
     }
 
     for (const media of report.autoplay) {
+      // controls 属性があれば、利用者は止められる。指摘しない。
+      if (media.hasControls) continue;
+      // 音声の要素が 3 秒を超えて鳴り、止めるためのボタンもページにないときは、不適合と判断する。
+      // 動画は音声を含まないことがあり、長さが分からないものもあるので、確認を求めるにとどめる。
+      const certain = media.tag === "audio" && !media.pageHasButtons && media.seconds !== null && media.seconds > 3;
       findings.push({
         sc: SC.audioControl,
-        severity: "review",
+        severity: certain ? "fail" : "review",
         selector: media.selector,
-        message: media.hasControls
-          ? tr("音声つきのメディアが自動で再生されます。3 秒を超えて続く場合、停止や音量調整ができるか確認してください。", "Media with sound plays automatically. If it lasts more than 3 seconds, check that it can be stopped or its volume adjusted.")
-          : tr("音声つきのメディアが自動で再生され、controls 属性もありません。3 秒を超えて続く場合は、停止や音量調整の手段が必要です。", "Media with sound plays automatically and has no controls attribute. If it lasts more than 3 seconds, a way to stop it or adjust its volume is required."),
-        details: { hasControls: media.hasControls },
+        message: certain
+          ? tr(
+              `音声が自動で再生され、3 秒を超えて続きます。controls 属性も、止めるためのボタンもありません。停止や音量調整の手段を用意してください。`,
+              `Audio plays automatically for more than 3 seconds, and there is neither a controls attribute nor a button to stop it. Provide a way to stop it or adjust its volume.`,
+            )
+          : tr(
+              "音声つきのメディアが自動で再生され、controls 属性もありません。3 秒を超えて続く場合は、停止や音量調整の手段が必要です。",
+              "Media with sound plays automatically and has no controls attribute. If it lasts more than 3 seconds, a way to stop it or adjust its volume is required.",
+            ),
+        details: { seconds: media.seconds !== null && Number.isFinite(media.seconds) ? Math.round(media.seconds) : null, pageHasButtons: media.pageHasButtons },
       });
     }
 
@@ -275,7 +286,13 @@ function collectStatic(minTarget: number): StaticReport {
 
   const autoplay = Array.from(document.querySelectorAll<HTMLMediaElement>("video[autoplay], audio[autoplay]"))
     .filter((m) => !m.muted)
-    .map((m) => ({ ...kikori.describe(m), hasControls: m.controls }));
+    .map((m) => ({
+      ...kikori.describe(m),
+      hasControls: m.controls,
+      // 繰り返し再生は、終わらないものとして扱う。長さが読めないときは null にする。
+      seconds: m.loop ? Infinity : Number.isFinite(m.duration) ? m.duration : null,
+      pageHasButtons: document.querySelector("button, [role='button'], input[type='button'], a[href]") !== null,
+    }));
 
   const hasMedia = document.querySelector("video, audio, iframe, object, embed") !== null;
 

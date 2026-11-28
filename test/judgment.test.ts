@@ -88,12 +88,47 @@ test("監査: 判断を渡すと状態に反映し、すべて解消すると no
 });
 
 test("監査: 判断で不適合にでき、自動検査の不適合は判断で覆せない", async () => {
-  const judged = await auditPage({ url: fixture("good.html"), judgments: [{ id: "2.4.6", verdict: "fail", reason: "見出しが内容と合わない" }] });
+  const judged = await auditPage({ url: fixture("good.html"), judgments: [{ id: "2.4.6", verdict: "fail", reason: "見出しが内容と合わない", evidence: "h1" }] });
   assert.equal(judged.criteria.find((c) => c.id === "2.4.6")?.status, "fail");
   assert.equal(judged.conformance.verdict, "nonconformant");
+
+  // 根拠の箇所がない不適合と、決められないという答えは、要確認にとどめる。
+  const weak = await auditPage({
+    url: fixture("good.html"),
+    judgments: [
+      { id: "2.4.6", verdict: "fail", reason: "見出しが内容と合わない" },
+      { id: "2.4.4", verdict: "unsure", reason: "行き先を確かめられない" },
+    ],
+  });
+  assert.equal(weak.criteria.find((c) => c.id === "2.4.6")?.status, "review");
+  assert.match(weak.criteria.find((c) => c.id === "2.4.6")?.note ?? "", /根拠/);
+  assert.equal(weak.criteria.find((c) => c.id === "2.4.4")?.status, "review");
+  assert.equal(weak.conformance.verdict, "undetermined");
 
   const overridden = await auditPage({ url: fixture("axe-bad.html"), judgments: [{ id: "1.1.1", verdict: "pass", reason: "問題なし" }] });
   const row = overridden.criteria.find((c) => c.id === "1.1.1");
   assert.equal(row?.status, "fail");
   assert.match(row?.note ?? "", /反映していません/);
+});
+
+test("判断材料: canvas や svg の画像、支援技術から隠された画像、タイトル、言語、エラーの文言を返す", async () => {
+  const result = await collectEvidence({ url: fixture("evidence-more.html"), screenshot: false });
+  const item = (id: string) => result.items.find((i) => i.id === id);
+
+  const images = item("1.1.1")?.evidence.images as { selector: string; tag: string; name: string | null; ignoredByAssistiveTech: boolean }[];
+  const image = (selector: string) => images.find((i) => i.selector === selector);
+  assert.equal(image("#drawn")?.tag, "canvas");
+  assert.equal(image("#drawn")?.name, "会社のロゴ");
+  assert.equal(image("#titled")?.name, "星の印");
+  assert.equal(image("#hidden-photo")?.ignoredByAssistiveTech, true);
+  assert.equal(image("#drawn")?.ignoredByAssistiveTech, false);
+
+  assert.equal(item("2.4.2")?.evidence.title, "りんごの収穫時期");
+  assert.equal(item("3.1.1")?.evidence.lang, "en");
+  assert.match(String(item("3.1.1")?.evidence.textInPageLanguage), /日本語で書かれています/);
+  assert.deepEqual((item("3.1.2")?.evidence.parts as { selector: string; lang: string }[]).map((p) => [p.selector, p.lang]), [["#french", "fr"]]);
+  const message = (item("3.3.1")?.evidence.messages as { selector: string; label: string; message: string }[]).find((m) => m.selector === "#age");
+  assert.equal(message?.label, "年齢");
+  assert.equal(message?.message, "入力に誤りがあります。");
+  assert.ok(item("2.4.9")?.question);
 });

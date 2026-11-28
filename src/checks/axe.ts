@@ -75,7 +75,9 @@ export async function checkAxe(options: AxeOptions): Promise<CheckResult> {
   const locale = lang() === "ja" ? (JSON.parse(await readFile(require.resolve("axe-core/locales/ja.json"), "utf8")) as unknown) : null;
 
   return withPage({ ...options, viewport }, async (page) => {
-    await page.addScriptTag({ path: require.resolve("axe-core/axe.min.js") });
+    // script 要素として差し込むと、ページの Content Security Policy に止められることがある。
+    // ページの保護を外さずに済むよう、デバッグ用の経路で直接評価する。
+    await page.evaluate(await readFile(require.resolve("axe-core/axe.min.js"), "utf8"));
     const results = (await page.evaluate(
       async ({ locale, tags, experimental }) => {
         // axe はページに読み込んだスクリプトが定義する。

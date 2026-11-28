@@ -72,7 +72,7 @@ The audits target WCAG 2.2 by default. Pass `wcag: "2.1"` to audit against WCAG 
 Whether a text alternative matches the image, or whether a heading describes what follows, cannot be decided mechanically. The calling model judges these criteria as follows.
 
 1. Run `audit_page`. Criteria that need a judgment come back as `needs_judgment`.
-2. Run `collect_evidence`. Each criterion comes with a question (`question`), the failure condition (`failWhen`) and the material (`evidence`), plus a full-page screenshot.
+2. Run `collect_evidence`. Each criterion comes with a question (`question`), the failure condition (`failWhen`), when to answer `unsure` (`unsureWhen`) and the material (`evidence`), plus a full-page screenshot.
 3. Use `capture_screenshot` to zoom in on an element when detail is needed.
 4. Run `audit_page` again with the decisions in `judgments`.
 
@@ -81,12 +81,18 @@ Whether a text alternative matches the image, or whether a heading describes wha
   "url": "http://localhost:3000/",
   "judgments": [
     { "id": "2.4.4", "verdict": "pass", "reason": "The link text alone identifies each destination" },
-    { "id": "1.1.1", "verdict": "fail", "reason": "The text alternative of #hero is a file name" }
+    { "id": "1.1.1", "verdict": "fail", "reason": "The text alternative is a file name", "evidence": "#hero, alt=\"IMG_0042.jpg\"" },
+    { "id": "2.4.9", "verdict": "unsure", "reason": "Two \"Details\" links go to different URLs and the destinations could not be read" }
   ]
 }
 ```
 
-`verdict` is `pass`, `fail` or `inapplicable`. A criterion that failed an automated check stays failed even if `pass` is supplied.
+`verdict` is `pass`, `fail`, `inapplicable` or `unsure`. A criterion that failed an automated check stays failed even if `pass` is supplied.
+
+kikori keeps a model's judgment from turning into a failure too easily:
+
+- A `fail` must name what it relies on in `evidence`: a selector or text from the page. A `fail` without it becomes `review`.
+- `unsure` says that the material is not enough to decide. The criterion becomes `review` and is handed to a person.
 
 `no_failure_found` is not proof of conformance. Automated checks cover a limited range and some judgments are made by a model. Have a person verify with assistive technology before claiming conformance.
 
@@ -94,15 +100,18 @@ Whether a text alternative matches the image, or whether a heading describes wha
 
 | Success criterion | Material |
 |---|---|
-| 1.1.1 Non-text Content | Images with their text alternatives |
+| 1.1.1 Non-text Content | Images, including `canvas` and `svg`, with their names and whether assistive technology ignores them |
 | 1.3.2 Meaningful Sequence | Text in HTML order, and places where it differs from the visual order |
 | 1.3.3 Sensory Characteristics | Candidate sentences that mention shape, color, position or sound |
-| 1.4.5 Images of Text | Images and background images |
+| 1.4.5 / 1.4.9 Images of Text | Images and background images |
 | 1.4.11 Non-text Contrast | Number of icons. Field boundaries are measured by `check_interaction` |
 | 2.3.1 Three Flashes or Below Threshold | Videos, GIFs and canvases |
-| 2.4.4 Link Purpose (In Context) | Link text, with surrounding context for links whose text alone is unclear |
+| 2.4.2 Page Titled | The title, the first headings and a sample of the text |
+| 2.4.4 / 2.4.9 Link Purpose | Link text, with surrounding context for links whose text alone is unclear |
 | 2.4.6 Headings and Labels | Headings and labels |
 | 2.5.1 / 2.5.2 | Draggable elements. Used on pages where a framework receives events in one place |
+| 3.1.1 / 3.1.2 Language | The `lang` attributes and the text they apply to |
+| 3.3.1 Error Identification | Fields marked invalid and the messages attached to them |
 | 4.1.3 Status Messages | Live regions and forms |
 
 ## Auditing several pages with audit_site
@@ -321,6 +330,30 @@ There are two severities.
 - Pointer handlers registered directly on `window` are not detected, because they cannot be told apart from the ones Playwright registers there.
 - Checks run in Chromium only.
 - Zero findings is not a guarantee that a criterion is satisfied. Finish with human eyes and assistive technology.
+
+## Accuracy
+
+kikori is compared with axe-core on its own against the [W3C ACT Rules test cases](https://www.w3.org/WAI/standards-guidelines/act/rules/): 955 test cases from the 63 rules that map to a WCAG success criterion. Of these, 303 are expected to fail.
+
+| | axe-core alone | kikori, automatic checks | kikori with a model's judgment |
+|---|---|---|---|
+| Rules covered | 37 | 43 | 56 |
+| Expected failures reported | 162 (53.5%) | 179 (59.1%) | 225 (74.3%) |
+| Reported or flagged for review | 177 (58.4%) | 211 (69.6%) | 260 (85.8%) |
+| False alarms | 0 | 1 | 7 |
+| Precision | 100% | 99.4% | 97.0% |
+
+With the model's judgment, the expected failures that go unreported drop from 126 with axe-core alone to 43. Most of the gain is in rules that need a judgment about meaning: text alternatives, link text, headings and labels, images of text, and language. axe-core can tell whether such text is present, not whether it fits.
+
+The benchmark understates one part of kikori. The ACT rules mostly cover what can be read from a page's markup, so the checks kikori performs by operating the page, such as reflow, text spacing, hover content and comparisons between pages, are barely measured here.
+
+The first two columns are fully automatic. Run `npm run benchmark:act` to reproduce them.
+
+The third column adds the step kikori is designed around, where the calling model judges the criteria that need a judgment about meaning. For this run Claude was the judging model, run as a separate agent. It was given only what `collect_evidence` returns and screenshots, with the expected outcomes hidden. The judgments are recorded in [docs/act-judgments.json](docs/act-judgments.json). Another model, or the same model on another day, will give different numbers, so read this column as one measured run.
+
+The judgment finds more failures and costs some precision: 6 of the 7 false alarms come from it. Treat a judged failure as a finding to confirm. Rules about captions, audio description and transcripts were not judged.
+
+This is not a formal ACT implementation report. The method, its limits and the numbers for every rule are in [docs/act-results.md](docs/act-results.md).
 
 ## Development
 

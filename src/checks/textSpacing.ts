@@ -33,7 +33,13 @@ export async function checkTextSpacing(options: TextSpacingOptions): Promise<Che
     const before = await page.evaluate(() => window.__kikori.measureText());
     const overlapsBefore = new Set(await page.evaluate(() => window.__kikori.overlappingPairs()));
 
-    await page.addStyleTag({ content: TEXT_SPACING_CSS });
+    // style 要素を差し込むと、ページの Content Security Policy に止められることがある。
+    // スクリプトから作るスタイルシートは対象外なので、そちらで上書きする。
+    await page.evaluate((css) => {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(css);
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+    }, TEXT_SPACING_CSS);
     await page.waitForTimeout(150);
 
     const after = await page.evaluate(() => window.__kikori.measureText());

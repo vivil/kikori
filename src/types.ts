@@ -11,6 +11,7 @@ export const SC = {
   sensoryCharacteristics: criterion("1.3.3"),
   inputPurpose: criterion("1.3.5"),
   audioControl: criterion("1.4.2"),
+  resizeText: criterion("1.4.4"),
   imagesOfText: criterion("1.4.5"),
   visualPresentation: criterion("1.4.8"),
   reflow: criterion("1.4.10"),
