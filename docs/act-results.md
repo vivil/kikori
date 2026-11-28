@@ -2,7 +2,7 @@
 
 How axe-core on its own and kikori compare with the expected outcomes of the [W3C ACT Rules test cases](https://www.w3.org/WAI/standards-guidelines/act/rules/).
 
-- Generated: 2026-11-27, with kikori 0.2.0 and axe-core 4.14.1
+- Generated: 2026-11-27, with kikori 0.3.0 and axe-core 4.14.1
 - Source: https://www.w3.org/WAI/content-assets/wcag-act-rules/testcases.json (1211 test cases)
 - Reproduce: `npm run benchmark:act`. The raw numbers are in [act-results.json](act-results.json).
 
