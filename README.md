@@ -9,7 +9,7 @@
 
 English | [日本語](README.ja.md)
 
-Kikori (木こり, "lumberjack") is an MCP server that audits WCAG 2.1 success criteria by driving a real browser.
+Kikori (木こり, "lumberjack") is an MCP server that audits WCAG 2.2 success criteria by driving a real browser. It can audit against WCAG 2.1 as well.
 When an agent such as Claude Code calls it, findings come back with the success criterion number and a CSS selector, so the agent can go straight to the fix.
 
 For criteria that cannot be decided mechanically, kikori returns evidence and screenshots and lets the calling model judge. Automated checks and model judgments together reach a conclusion for every success criterion.
@@ -20,22 +20,36 @@ The name comes from the lumberjack who swings the axe: kikori uses axe-core as o
 
 | Tool | Success criteria | What it does |
 |---|---|---|
-| `audit_site` | All of WCAG 2.1 | Audits several pages and compares them for consistency |
-| `audit_page` | All of WCAG 2.1 | Runs every check below and returns a status for each success criterion |
+| `audit_site` | All of WCAG 2.2 or 2.1 | Audits several pages and compares them for consistency |
+| `audit_page` | All of WCAG 2.2 or 2.1 | Runs every check below and returns a status for each success criterion |
 | `check_axe` | Criteria covered by axe-core | Detects problems with text alternatives, contrast, labels, ARIA, language declarations and more |
 | `check_reflow` | 1.4.10 Reflow | Renders at 320px wide and detects horizontal scrolling, overflowing elements and clipped text |
 | `check_text_spacing` | 1.4.12 Text Spacing | Widens line height and spacing, compares before and after, and detects clipped or overlapping text |
-| `check_keyboard_focus` | 2.1.1 / 2.1.2 / 2.4.3 / 2.4.7 / 2.4.11 / 3.2.1 | Tabs through the page and checks focus order, focus indicators, obscured focus, traps and context changes on focus |
-| `check_presentation` | 2.5.5 / 1.4.8 / 2.2.2 / 1.4.2 / 1.3.5 | Detects small targets, hard-to-read text layout, long-running animation, autoplaying sound and fields without autocomplete |
-| `check_interaction` | 1.4.13 / 2.1.4 / 3.2.2 / 2.5.1 / 2.5.2 / 2.5.4 / 1.4.11 / 2.3.1 / 4.1.3 | Tries hover, character keys and input changes, and inspects event listeners and boundary contrast |
+| `check_keyboard_focus` | 2.1.1 / 2.1.2 / 2.4.3 / 2.4.7 / 2.4.11 / 2.4.12 / 2.4.13 / 3.2.1 | Tabs through the page and checks focus order, focus indicators, obscured focus, traps and context changes on focus |
+| `check_presentation` | 2.5.5 / 2.5.8 / 1.4.8 / 2.2.2 / 1.4.2 / 1.3.5 | Detects small or crowded targets, hard-to-read text layout, long-running animation, autoplaying sound and fields without autocomplete |
+| `check_interaction` | 1.4.13 / 2.1.4 / 3.2.2 / 2.5.1 / 2.5.2 / 2.5.4 / 2.5.7 / 3.3.8 / 1.4.11 / 2.3.1 / 4.1.3 | Tries hover, character keys and input changes, and inspects event listeners, boundary contrast, dragging and obstacles to authentication |
 | `collect_evidence` | Criteria that need a look at the content | Returns the question to answer, the failure condition, the evidence and a full-page screenshot |
 | `capture_screenshot` | - | Returns a screenshot of the page or an element, for a closer look |
 
-2.4.11 was added in WCAG 2.2. `audit_page` returns it separately in `beyondTarget` and leaves it out of the WCAG 2.1 verdict.
+The audits target WCAG 2.2 by default. Pass `wcag: "2.1"` to audit against WCAG 2.1 instead. The criteria added in 2.2 that kikori checked are then returned separately in `beyondTarget` and left out of the verdict.
+
+| Added in WCAG 2.2 | Level | How kikori handles it |
+|---|---|---|
+| 2.4.11 Focus Not Obscured (Minimum) | AA | Fails when the focused element is entirely hidden behind another element |
+| 2.4.12 Focus Not Obscured (Enhanced) | AAA | Fails when any part of it is hidden |
+| 2.4.13 Focus Appearance | AAA | Asks for review when the outline is thinner than 2px or not set |
+| 2.5.7 Dragging Movements | AA | Asks for review of elements operated by dragging |
+| 2.5.8 Target Size (Minimum) | AA | Fails for targets below 24 × 24px that are also too close to a neighbour |
+| 3.2.6 Consistent Help | A | `audit_site` fails when help or contact links change position between pages |
+| 3.3.7 Redundant Entry | A | `audit_site` asks for review when the same field appears on several pages |
+| 3.3.8 Accessible Authentication (Minimum) | AA | Fails for password fields that reject paste; asks for review of `autocomplete="off"` and CAPTCHAs |
+| 3.3.9 Accessible Authentication (Enhanced) | AAA | Asks for review of CAPTCHAs |
+
+4.1.1 Parsing was removed in WCAG 2.2 and is listed only when auditing against 2.1.
 
 ## Reading audit_page
 
-`audit_page` lists every success criterion up to the target level (`A`, `AA` or `AAA`; default `AA`) and gives each a status. That is 50 criteria at Level AA and 78 at AAA.
+`audit_page` lists every success criterion up to the target level (`A`, `AA` or `AAA`; default `AA`) and gives each a status. For WCAG 2.2 that is 55 criteria at Level AA and 86 at AAA; for WCAG 2.1, 50 and 78.
 
 | Status | Meaning |
 |---|---|
@@ -102,6 +116,8 @@ Whether a text alternative matches the image, or whether a heading describes wha
 | 2.4.2 Page Titled | Whether different pages share the same title |
 | 2.4.5 Multiple Ways | Whether at least two of navigation, site search and a sitemap exist |
 | 2.4.8 Location (AAA) | Whether there is a breadcrumb trail or `aria-current="page"` |
+| 3.2.6 Consistent Help | Whether help or contact links keep the same position relative to the other repeated links |
+| 3.3.7 Redundant Entry | Whether the same field appears on several pages |
 
 There are two ways to choose the pages.
 
@@ -250,6 +266,7 @@ Every tool requires `url`, which may be an `http`, `https` or `file` URL.
 | `waitMs` | All | Extra time to wait after load, in milliseconds |
 | `urls` / `maxPages` | `audit_site` | Pages to audit, and the maximum number of pages |
 | `level` | `audit_site`, `audit_page`, `check_axe` | Target conformance level (`A`, `AA`, `AAA`). Default `AA` |
+| `wcag` | `audit_site`, `audit_page`, `check_axe` | WCAG version (`2.2` or `2.1`). Default `2.2` |
 | `judgments` | `audit_site`, `audit_page` | Judgments made by a model or a person |
 | `criteria` / `screenshot` | `collect_evidence` | Criteria to gather material for, and whether to attach a screenshot |
 | `selector` / `fullPage` | `capture_screenshot` | Element to capture, and whether to capture the full page |
@@ -295,7 +312,8 @@ There are two severities.
 - Line length is an estimate that counts a CJK character as 1em and a Latin character as 0.5em.
 - `audit_page` works on one page. Criteria that compare pages, such as 3.2.3 and 3.2.4, come back as `manual`; use `audit_site` for those.
 - `audit_site` follows only the links on the start page. Screens that appear after an action cannot be audited. Pages behind a login need `--storage-state`, and then the pages have to be listed in `urls`.
-- 4.1.1 is treated as always satisfied for HTML content, per the WCAG 2.1 errata.
+- When auditing against WCAG 2.1, 4.1.1 is treated as always satisfied for HTML content, per the WCAG 2.1 errata.
+- The checks for the criteria added in WCAG 2.2 are heuristics. 2.4.13 is judged from the `outline` style, not from the pixels of the indicator. 3.3.8 looks for password fields and common CAPTCHA markup, and does not follow a login flow.
 - When a page has no media or no form fields, the related criteria are presumed not to apply. Elements loaded later may be missed.
 - `check_interaction` blocks navigation requests and non-GET requests while it operates the page. It does not change data on the server, but a site that changes state on GET may still be affected.
 - Hover content is detected only if it appears within 250 milliseconds. Native tooltips from the `title` attribute are out of scope.

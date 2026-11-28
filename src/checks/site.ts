@@ -2,7 +2,7 @@ import { tr } from "../i18n.js";
 import { auditPage, limitToLevel, summarizeCriteria, type CriterionRow, type CriterionStatus, type Judgment, type Verdict } from "./audit.js";
 import { assertAllowedUrl, withPage } from "../browser.js";
 import { getSettings } from "../config.js";
-import type { Level } from "../criteria.js";
+import type { Level, WcagVersion } from "../criteria.js";
 import { SC, summarize, type CheckResult, type Finding } from "../types.js";
 
 export interface SiteOptions {
@@ -13,6 +13,8 @@ export interface SiteOptions {
   /** 検査するページ数の上限。既定値は 5。 */
   maxPages?: number;
   level?: Level;
+  /** 対象とする WCAG のバージョン。既定値は 2.2。 */
+  wcag?: WcagVersion;
   /** サイト全体に対する判断。達成基準の一覧に反映する。 */
   judgments?: Judgment[];
   waitForSelector?: string;
@@ -42,6 +44,10 @@ export interface PageSnapshot {
   hasSitemapLink: boolean;
   hasBreadcrumb: boolean;
   hasCurrentMarker: boolean;
+  /** 繰り返し現れるリンクのうち、問い合わせやヘルプへ案内するものの行き先 */
+  helpLinks: string[];
+  /** 入力欄を見分ける手がかり (autocomplete の値か name)。パスワードと検索は含めない。 */
+  formFields: string[];
 }
 
 export interface SiteResult {
@@ -61,6 +67,7 @@ const MAX_REPORTED = 20;
 
 export async function auditSite(options: SiteOptions): Promise<SiteResult> {
   const level = options.level ?? "AA";
+  const version = options.wcag ?? "2.2";
   const maxPages = Math.min(options.maxPages ?? 5, MAX_PAGES);
   const wait = { waitForSelector: options.waitForSelector, waitMs: options.waitMs };
   const notes: string[] = [];
@@ -95,14 +102,14 @@ export async function auditSite(options: SiteOptions): Promise<SiteResult> {
 
   const perPage: CheckResult[][] = [];
   for (const snapshot of snapshots) {
-    perPage.push((await auditPage({ url: snapshot.url, level, ...wait })).results);
+    perPage.push((await auditPage({ url: snapshot.url, level, wcag: version, ...wait })).results);
   }
 
   const all = [...perPage.flat(), crossPage];
-  const { criteria, beyondTarget, counts, verdict, explanation } = summarizeCriteria(all, level, options.judgments);
+  const { criteria, beyondTarget, counts, verdict, explanation } = summarizeCriteria(all, level, options.judgments, version);
 
   return {
-    target: tr(`WCAG 2.1 レベル ${level} (${snapshots.length} ページ)`, `WCAG 2.1 Level ${level} (${snapshots.length} pages)`),
+    target: tr(`WCAG ${version} レベル ${level} (${snapshots.length} ページ)`, `WCAG ${version} Level ${level} (${snapshots.length} pages)`),
     pages: snapshots.map((snapshot, i) => {
       const findings = perPage[i]!.flatMap((r) => r.findings);
       return { url: snapshot.url, title: snapshot.title, summary: summarize(findings), findings };
@@ -139,12 +146,14 @@ async function takeSnapshot(options: { url: string; waitForSelector?: string | u
     async (page) => {
       const raw = await page.evaluate(collectSnapshot);
       const fix = (links: LinkInfo[]): LinkInfo[] => links.map((l) => ({ ...l, href: normalize(l.href) }));
+      const helpLinks = unique(raw.helpLinks.map((href) => (/^(tel|mailto):/i.test(href) ? href : normalize(href))));
       return {
         ...raw,
         url: normalize(page.url()),
         navs: raw.navs.map((nav) => ({ ...nav, links: fix(nav.links) })),
         repeatedLinks: fix(raw.repeatedLinks),
         internalLinks: unique(raw.internalLinks.map(normalize)),
+        helpLinks,
       };
     },
   );
@@ -181,6 +190,7 @@ function collectSnapshot(): Omit<PageSnapshot, "url"> {
     .filter((a) => /^(https?|file):$/.test(a.protocol) && sameSite(a) && !SKIP_EXTENSIONS.test(a.pathname) && !a.hasAttribute("download"))
     .map((a) => a.href);
 
+  const HELP = /ヘルプ|お問い?合わ?せ|サポート|よくある(ご)?質問|help|support|contact|faq|^tel:|^mailto:/i;
   const breadcrumb = navElements.some((nav) => /パンくず|breadcrumb/i.test(`${nav.getAttribute("aria-label") ?? ""} ${nav.className}`));
   return {
     title: document.title.trim(),
@@ -191,6 +201,11 @@ function collectSnapshot(): Omit<PageSnapshot, "url"> {
     hasSitemapLink: Array.from(document.querySelectorAll("a[href]")).some((a) => /サイトマップ|sitemap/i.test(`${a.textContent ?? ""} ${a.getAttribute("href") ?? ""}`)),
     hasBreadcrumb: breadcrumb,
     hasCurrentMarker: document.querySelector("[aria-current='page']") !== null,
+    helpLinks: repeatedLinks.filter((link) => HELP.test(`${link.name} ${link.href}`)).map((link) => link.href),
+    formFields: Array.from(document.querySelectorAll<HTMLInputElement>("input, select, textarea"))
+      .filter((el) => !["hidden", "submit", "button", "reset", "image", "file", "password", "search", "checkbox", "radio"].includes(el.type))
+      .map((el) => (el.getAttribute("autocomplete") ?? "").trim() || el.name)
+      .filter((key) => key !== "" && key !== "off" && key !== "on"),
   };
 }
 
@@ -198,6 +213,7 @@ function collectSnapshot(): Omit<PageSnapshot, "url"> {
 export function comparePages(pages: PageSnapshot[]): CheckResult {
   const findings: Finding[] = [];
   const checked: string[] = [];
+  const inapplicable: string[] = [];
   const notes: string[] = [];
   const base: Omit<CheckResult, "summary" | "findings" | "checked"> = {
     check: "cross_page",
@@ -301,6 +317,59 @@ export function comparePages(pages: PageSnapshot[]): CheckResult {
     });
   }
 
+  // 3.2.6: 問い合わせやヘルプへの案内が、ほかの繰り返し現れるリンクに対して、いつも同じ順に並ぶか。
+  const withHelp = pages.filter((page) => page.helpLinks.length > 0);
+  if (withHelp.length === 0) {
+    inapplicable.push("3.2.6");
+  } else {
+    checked.push("3.2.6");
+    const reference = withHelp[0]!;
+    const order = (page: PageSnapshot): string[] => unique(page.repeatedLinks.map((l) => l.href));
+    for (const page of withHelp.slice(1)) {
+      const here = order(page);
+      const there = order(reference);
+      const common = here.filter((href) => there.includes(href));
+      const commonThere = there.filter((href) => here.includes(href));
+      const moved = common.filter((href, i) => commonThere[i] !== href && (page.helpLinks.includes(href) || reference.helpLinks.includes(href)));
+      if (moved.length === 0) continue;
+      findings.push({
+        sc: SC.consistentHelp,
+        severity: "fail",
+        selector: "a[href]",
+        message: tr(
+          `問い合わせやヘルプへの案内の位置が、${reference.url} と違います。ほかの項目に対して、どのページでも同じ順に並べてください。`,
+          `Help or contact links are in a different position than on ${reference.url}. Keep them in the same order relative to the other items on every page.`,
+        ),
+        details: { page: page.url, comparedWith: reference.url, moved },
+      });
+    }
+  }
+
+  // 3.3.7: 同じ情報を、複数のページでもう一度入力させていないか。
+  const pagesByField = new Map<string, string[]>();
+  for (const page of pages) {
+    for (const key of unique(page.formFields)) pagesByField.set(key, [...(pagesByField.get(key) ?? []), page.url]);
+  }
+  if (pages.every((page) => page.formFields.length === 0)) {
+    inapplicable.push("3.3.7");
+  } else {
+    checked.push("3.3.7");
+    let repeated = 0;
+    for (const [field, urls] of pagesByField) {
+      if (urls.length < 2 || repeated++ >= MAX_REPORTED) continue;
+      findings.push({
+        sc: SC.redundantEntry,
+        severity: "review",
+        selector: `[name="${field}"], [autocomplete="${field}"]`,
+        message: tr(
+          `入力欄「${field}」が ${urls.length} ページにあります。同じ手続きの中のページであれば、先に入力した内容が自動で入るか、選べるようになっているか確認してください。`,
+          `The field "${field}" appears on ${urls.length} pages. If they belong to the same process, check that what was entered earlier is filled in automatically or can be selected.`,
+        ),
+        details: { field, pages: urls },
+      });
+    }
+  }
+
   // 2.4.8 (AAA): サイトの中での現在位置が分かるか。
   checked.push("2.4.8");
   for (const page of pages) {
@@ -314,5 +383,5 @@ export function comparePages(pages: PageSnapshot[]): CheckResult {
     });
   }
 
-  return { ...base, summary: summarize(findings), findings, checked, data: { pages: pages.map((p) => p.url) }, ...(notes.length > 0 ? { notes } : {}) };
+  return { ...base, summary: summarize(findings), findings, checked, inapplicable, data: { pages: pages.map((p) => p.url) }, ...(notes.length > 0 ? { notes } : {}) };
 }

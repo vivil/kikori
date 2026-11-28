@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>WCAG 2.2 の基準に問題のあるページ</title>
+<style>
+  body { margin: 0; font-family: sans-serif; }
+  header { position: fixed; top: 0; left: 0; right: 0; height: 40px; background: #223; z-index: 10; }
+  main { padding: 120px 2rem 2rem; }
+  .tiny { width: 16px; height: 16px; padding: 0; border: 1px solid #333; }
+  #half-covered { position: absolute; top: 24px; left: 2rem; height: 32px; }
+  #lonely { margin: 60px; }
+  #card { width: 120px; padding: 0.5rem; border: 1px solid #555; }
+  button:focus-visible, input:focus-visible { outline: 3px solid #1a5fb4; outline-offset: 2px; }
+  #thin:focus-visible { outline: 1px solid #1a5fb4; }
+</style>
+</head>
+<body>
+<header></header>
+<main>
+  <h1>WCAG 2.2 の基準に問題のあるページ</h1>
+  <button id="half-covered" type="button">半分隠れるボタン</button>
+  <p><button id="thin" type="button">細い枠のボタン</button></p>
+  <p>
+    <button id="close-a" class="tiny" type="button" aria-label="前へ"></button><button id="close-b" class="tiny" type="button" aria-label="次へ"></button>
+  </p>
+  <p><button id="lonely" class="tiny" type="button" aria-label="閉じる"></button></p>
+  <div id="card" draggable="true">ドラッグで並べ替える項目</div>
+  <form>
+    <p><label>パスワード <input id="no-paste" type="password" onpaste="return false"></label></p>
+    <p><label>確認用のパスワード <input id="no-fill" type="password" autocomplete="off"></label></p>
+    <div id="captcha-box" class="g-recaptcha">画像の中の文字を入力してください</div>
+  </form>
+</main>
+</body>
+</html>

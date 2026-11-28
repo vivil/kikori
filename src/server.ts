@@ -67,7 +67,11 @@ export function createServer(): McpServer {
   const level = z
     .enum(["A", "AA", "AAA"])
     .optional()
-    .describe(tr("目標とする WCAG 2.1 の適合レベル。既定値は AA。", "Target WCAG 2.1 conformance level. Default AA."));
+    .describe(tr("目標とする適合レベル。既定値は AA。", "Target conformance level. Default AA."));
+  const wcag = z
+    .enum(["2.1", "2.2"])
+    .optional()
+    .describe(tr("対象とする WCAG のバージョン。既定値は 2.2。", "WCAG version to audit against. Default 2.2."));
   const judgments = z
     .array(
       z.object({
@@ -121,7 +125,7 @@ export function createServer(): McpServer {
   server.registerTool(
     "check_keyboard_focus",
     {
-      title: tr("キーボードフォーカスの検査 (WCAG 2.1.1 / 2.1.2 / 2.4.3 / 2.4.7 / 2.4.11 / 3.2.1)", "Keyboard focus check (WCAG 2.1.1 / 2.1.2 / 2.4.3 / 2.4.7 / 2.4.11 / 3.2.1)"),
+      title: tr("キーボードフォーカスの検査 (WCAG 2.1.1 / 2.1.2 / 2.4.3 / 2.4.7 / 2.4.11 / 2.4.12 / 2.4.13 / 3.2.1)", "Keyboard focus check (WCAG 2.1.1 / 2.1.2 / 2.4.3 / 2.4.7 / 2.4.11 / 2.4.12 / 2.4.13 / 3.2.1)"),
       description: tr(
         "実際に Tab キーを押してページを一巡し、フォーカスの順序を記録する。フォーカス表示がない要素、固定ヘッダーなどに隠れる要素、フォーカスが抜け出せない箇所、キーボードで届かない操作部品、フォーカスだけで起きる画面の移動を検出する。data.sequence にフォーカス順の一覧が入るので、順序が意味の通るものかを判断できる。",
         "Presses Tab through the whole page and records the focus order. Detects elements with no focus indicator, elements hidden behind a fixed header or similar, places focus cannot leave, controls the keyboard cannot reach, and context changes triggered by focus alone. data.sequence lists the focus order so you can judge whether it makes sense.",
@@ -144,7 +148,7 @@ export function createServer(): McpServer {
         "axe-core のルールを実行し、代替テキスト、コントラスト、ラベル、ARIA、言語指定、見出し構造などの不備を検出する。結果は達成基準ごとに整理して返す。自動で判定できなかったものは review になる。",
         "Runs the axe-core rules and detects problems with text alternatives, contrast, labels, ARIA, language declarations, heading structure and more. Results are organised by success criterion. Anything axe could not decide becomes review.",
       ),
-      inputSchema: { ...common, level, ...viewport },
+      inputSchema: { ...common, level, wcag, ...viewport },
       annotations,
     },
     (args) => respond(() => checkAxe(args)),
@@ -153,10 +157,10 @@ export function createServer(): McpServer {
   server.registerTool(
     "check_presentation",
     {
-      title: tr("ターゲットのサイズ・視覚的提示・動きの検査 (WCAG 2.5.5 / 1.4.8 / 2.2.2 / 1.4.2 / 1.3.5)", "Target size, visual presentation and motion check (WCAG 2.5.5 / 1.4.8 / 2.2.2 / 1.4.2 / 1.3.5)"),
+      title: tr("ターゲットのサイズ・視覚的提示・動きの検査 (WCAG 2.5.5 / 2.5.8 / 1.4.8 / 2.2.2 / 1.4.2 / 1.3.5)", "Target size, visual presentation and motion check (WCAG 2.5.5 / 2.5.8 / 1.4.8 / 2.2.2 / 1.4.2 / 1.3.5)"),
       description: tr(
-        "押せる範囲が 44 × 44px に届かない操作部品、両端揃えや行の高さ・行の長さが基準を外れる文章、5 秒を超えて動き続けるアニメーション、音声つきの自動再生、autocomplete のない個人情報の入力欄を検出する。2.5.5 と 1.4.8 はレベル AAA の達成基準。",
-        "Detects controls whose target is smaller than 44 × 44px, text that is justified or whose line height or line length is out of range, animations that keep moving for more than 5 seconds, autoplaying media with sound, and personal-data fields without autocomplete. 2.5.5 and 1.4.8 are Level AAA criteria.",
+        "押せる範囲が 44 × 44px に届かない操作部品、24 × 24px に届かず隣との間隔も足りない操作部品、両端揃えや行の高さ・行の長さが基準を外れる文章、5 秒を超えて動き続けるアニメーション、音声つきの自動再生、autocomplete のない個人情報の入力欄を検出する。2.5.5 と 1.4.8 はレベル AAA、2.5.8 は WCAG 2.2 のレベル AA の達成基準。",
+        "Detects controls whose target is smaller than 44 × 44px, controls below 24 × 24px that are also too close to a neighbour, text that is justified or whose line height or line length is out of range, animations that keep moving for more than 5 seconds, autoplaying media with sound, and personal-data fields without autocomplete. 2.5.5 and 1.4.8 are Level AAA criteria; 2.5.8 is a Level AA criterion of WCAG 2.2.",
       ),
       inputSchema: { ...common, ...viewport },
       annotations,
@@ -168,12 +172,12 @@ export function createServer(): McpServer {
     "check_interaction",
     {
       title: tr(
-        "操作して確かめる検査 (WCAG 1.4.13 / 2.1.4 / 3.2.2 / 2.5.1 / 2.5.2 / 2.5.4 / 1.4.11 / 2.3.1 / 4.1.3)",
-        "Interaction check (WCAG 1.4.13 / 2.1.4 / 3.2.2 / 2.5.1 / 2.5.2 / 2.5.4 / 1.4.11 / 2.3.1 / 4.1.3)",
+        "操作して確かめる検査 (WCAG 1.4.13 / 2.1.4 / 3.2.2 / 2.5.1 / 2.5.2 / 2.5.4 / 2.5.7 / 3.3.8 / 1.4.11 / 2.3.1 / 4.1.3)",
+        "Interaction check (WCAG 1.4.13 / 2.1.4 / 3.2.2 / 2.5.1 / 2.5.2 / 2.5.4 / 2.5.7 / 3.3.8 / 1.4.11 / 2.3.1 / 4.1.3)",
       ),
       description: tr(
-        "実際に操作して確かめる。要素にホバーして現れた内容が消せるか・ポインタを載せられるか、文字キーだけで動くショートカットがないか、入力欄の値を変えただけで画面が移動しないかを調べる。あわせて、ポインタや端末の動きを受け取るイベントリスナー、入力欄の境界のコントラスト、速い点滅、ステータスメッセージの領域を調べる。ページを移動する要求と GET 以外の要求は止めるので、サーバー側のデータは変えない。",
-        "Checks by actually operating the page. Hovers elements to see whether the revealed content can be dismissed and hovered, looks for shortcuts triggered by a character key alone, and checks that changing a field's value does not move the page. Also inspects event listeners for pointer and device motion, the contrast of field boundaries, fast flashing and status message regions. Navigation requests and non-GET requests are blocked, so no data on the server is changed.",
+        "実際に操作して確かめる。要素にホバーして現れた内容が消せるか・ポインタを載せられるか、文字キーだけで動くショートカットがないか、入力欄の値を変えただけで画面が移動しないかを調べる。あわせて、ポインタや端末の動きを受け取るイベントリスナー、入力欄の境界のコントラスト、速い点滅、ステータスメッセージの領域、ドラッグで操作する要素、貼り付けを拒否するパスワード欄や CAPTCHA を調べる。ページを移動する要求と GET 以外の要求は止めるので、サーバー側のデータは変えない。",
+        "Checks by actually operating the page. Hovers elements to see whether the revealed content can be dismissed and hovered, looks for shortcuts triggered by a character key alone, and checks that changing a field's value does not move the page. Also inspects event listeners for pointer and device motion, the contrast of field boundaries, fast flashing, status message regions, elements operated by dragging, and password fields that reject paste or CAPTCHAs. Navigation requests and non-GET requests are blocked, so no data on the server is changed.",
       ),
       inputSchema: { ...common, ...viewport },
       annotations,
@@ -235,12 +239,12 @@ export function createServer(): McpServer {
   server.registerTool(
     "audit_page",
     {
-      title: tr("WCAG 2.1 の全達成基準に対する監査", "Audit against every WCAG 2.1 success criterion"),
+      title: tr("WCAG の全達成基準に対する監査", "Audit against every WCAG success criterion"),
       description: tr(
-        "axe-core とこのサーバーの全検査を実行し、WCAG 2.1 の目標レベルまでの全達成基準について状態を返す。criteria に達成基準ごとの状態が入る。fail は不適合、review は確認が必要な箇所あり、needs_judgment は内容を見た判断が必要、no_issue_found は自動検査の範囲で問題なし、inapplicable は対象の要素がなく該当しないと推定、manual は材料を集める手段がなく人の確認が必要。needs_judgment と review の達成基準は、collect_evidence で材料を集めて判断し、judgments に渡して再実行すると judged_pass などに変わる。conformance.verdict は、不適合があれば nonconformant、確認が残っていれば undetermined、すべて解消すれば no_failure_found になる。",
-        "Runs axe-core and every check in this server, and returns a status for every WCAG 2.1 success criterion up to the target level. criteria holds the status of each one: fail is a failure, review has spots that need checking, needs_judgment requires a look at the content, no_issue_found means nothing was found within what automation covers, inapplicable means no relevant element was found so it is presumed not to apply, and manual means no material can be gathered and a person must check. For needs_judgment and review, gather material with collect_evidence, decide, and run again with judgments to turn them into judged_pass and so on. conformance.verdict is nonconformant when there is a failure, undetermined while anything is open, and no_failure_found once everything is resolved.",
+        "axe-core とこのサーバーの全検査を実行し、WCAG 2.2 (wcag で 2.1 も選べる) の目標レベルまでの全達成基準について状態を返す。criteria に達成基準ごとの状態が入る。fail は不適合、review は確認が必要な箇所あり、needs_judgment は内容を見た判断が必要、no_issue_found は自動検査の範囲で問題なし、inapplicable は対象の要素がなく該当しないと推定、manual は材料を集める手段がなく人の確認が必要。needs_judgment と review の達成基準は、collect_evidence で材料を集めて判断し、judgments に渡して再実行すると judged_pass などに変わる。conformance.verdict は、不適合があれば nonconformant、確認が残っていれば undetermined、すべて解消すれば no_failure_found になる。",
+        "Runs axe-core and every check in this server, and returns a status for every WCAG 2.2 success criterion up to the target level (set wcag to audit against 2.1 instead). criteria holds the status of each one: fail is a failure, review has spots that need checking, needs_judgment requires a look at the content, no_issue_found means nothing was found within what automation covers, inapplicable means no relevant element was found so it is presumed not to apply, and manual means no material can be gathered and a person must check. For needs_judgment and review, gather material with collect_evidence, decide, and run again with judgments to turn them into judged_pass and so on. conformance.verdict is nonconformant when there is a failure, undetermined while anything is open, and no_failure_found once everything is resolved.",
       ),
-      inputSchema: { ...common, level, judgments },
+      inputSchema: { ...common, level, wcag, judgments },
       annotations,
     },
     (args) => respond(() => auditPage(args)),
@@ -249,10 +253,10 @@ export function createServer(): McpServer {
   server.registerTool(
     "audit_site",
     {
-      title: tr("複数ページにまたがる WCAG 2.1 の監査", "WCAG 2.1 audit across several pages"),
+      title: tr("複数ページにまたがる WCAG の監査", "WCAG audit across several pages"),
       description: tr(
-        "複数のページを監査し、サイト全体としての達成基準ごとの状態を返す。各ページに audit_page と同じ検査を行ったうえで、ページどうしを比べて、ナビゲーションの並び順の一貫性 (3.2.3)、同じ行き先のリンク名の一貫性 (3.2.4)、タイトルの重複 (2.4.2)、ページにたどり着く手段の数 (2.4.5)、現在位置の手がかり (2.4.8) を調べる。urls を省くと、url のページにある同じサイト内のリンクを maxPages までたどる。ページ数に比例して時間がかかる。",
-        "Audits several pages and returns the status of each success criterion for the site as a whole. Runs the same checks as audit_page on every page, then compares pages for consistent navigation order (3.2.3), consistent names for links to the same destination (3.2.4), duplicate titles (2.4.2), the number of ways to reach a page (2.4.5) and cues for the current location (2.4.8). When urls is omitted, same-site links on the url page are followed up to maxPages. Time grows with the number of pages.",
+        "複数のページを監査し、サイト全体としての達成基準ごとの状態を返す。各ページに audit_page と同じ検査を行ったうえで、ページどうしを比べて、ナビゲーションの並び順の一貫性 (3.2.3)、同じ行き先のリンク名の一貫性 (3.2.4)、タイトルの重複 (2.4.2)、ページにたどり着く手段の数 (2.4.5)、現在位置の手がかり (2.4.8)、ヘルプの位置の一貫性 (3.2.6)、同じ内容の再入力 (3.3.7) を調べる。urls を省くと、url のページにある同じサイト内のリンクを maxPages までたどる。ページ数に比例して時間がかかる。",
+        "Audits several pages and returns the status of each success criterion for the site as a whole. Runs the same checks as audit_page on every page, then compares pages for consistent navigation order (3.2.3), consistent names for links to the same destination (3.2.4), duplicate titles (2.4.2), the number of ways to reach a page (2.4.5), cues for the current location (2.4.8), a consistent position for help (3.2.6) and fields that ask for the same information again (3.3.7). When urls is omitted, same-site links on the url page are followed up to maxPages. Time grows with the number of pages.",
       ),
       inputSchema: {
         ...common,
@@ -268,6 +272,7 @@ export function createServer(): McpServer {
           ),
         maxPages: z.number().int().min(1).max(20).optional().describe(tr("検査するページ数の上限。既定値は 5。", "Maximum number of pages to audit. Default 5.")),
         level,
+        wcag,
         judgments,
       },
       annotations,

@@ -1,11 +1,11 @@
 ---
 name: kikori
-description: Audit a web page or site against WCAG 2.1 with the kikori MCP server and fix what it finds. Use when asked to check accessibility, WCAG conformance, keyboard or focus behaviour, reflow, text spacing, or other a11y problems of a web page.
+description: Audit a web page or site against WCAG 2.2 (or 2.1) with the kikori MCP server and fix what it finds. Use when asked to check accessibility, WCAG conformance, keyboard or focus behaviour, reflow, text spacing, or other a11y problems of a web page.
 ---
 
 # Auditing with kikori
 
-kikori is an MCP server that audits WCAG 2.1 success criteria in a real browser. Use its tools as described here.
+kikori is an MCP server that audits WCAG success criteria in a real browser. It targets WCAG 2.2 by default. Use its tools as described here.
 
 ## Before you start
 
@@ -15,7 +15,7 @@ kikori is an MCP server that audits WCAG 2.1 success criteria in a real browser.
 
 ## Workflow
 
-1. Run `audit_page` on the page, or `audit_site` when several pages are involved. The default target is Level AA; pass `level` only if the user asked for another level.
+1. Run `audit_page` on the page, or `audit_site` when several pages are involved. The default target is WCAG 2.2 Level AA; pass `level` or `wcag` only if the user asked for another level or for WCAG 2.1.
 2. Read `criteria`. Each success criterion has a status:
    - `fail`: a failure was found. Fix it.
    - `review`: look at the findings and decide.

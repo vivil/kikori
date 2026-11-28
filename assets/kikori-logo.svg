@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 222 64" width="888" height="256" role="img" aria-labelledby="t d">
   <title id="t">kikori</title>
-  <desc id="d">A tree stump seen from above, with growth rings and an axe cut, beside the name kikori in rounded lowercase letters. The logo of kikori, an MCP server that audits WCAG 2.1.</desc>
+  <desc id="d">A tree stump seen from above, with growth rings and an axe cut, beside the name kikori in rounded lowercase letters. The logo of kikori, an MCP server that audits WCAG.</desc>
   <style>
     svg { --edge: #4A2E17; --text: #4A2E17; }
     @media (prefers-color-scheme: dark) { svg { --edge: #F7EBD6; --text: #F7EBD6; } }

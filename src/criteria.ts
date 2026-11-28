@@ -102,10 +102,42 @@ export const WCAG21: readonly SuccessCriterion[] = [
   row("4.1.3", "ステータスメッセージ", "Status Messages", "AA", "2.1"),
 ];
 
-/** WCAG 2.2 で追加された達成基準のうち、このツールが検査するもの。 */
-export const WCAG22_EXTRA: readonly SuccessCriterion[] = [row("2.4.11", "隠されないフォーカス (最低限)", "Focus Not Obscured (Minimum)", "AA", "2.2")];
+export type WcagVersion = "2.1" | "2.2";
 
-const BY_ID = new Map([...WCAG21, ...WCAG22_EXTRA].map((c) => [c.id, c]));
+/** WCAG 2.2 で追加された達成基準。 */
+export const WCAG22_ADDED: readonly SuccessCriterion[] = [
+  row("2.4.11", "隠されないフォーカス (最低限)", "Focus Not Obscured (Minimum)", "AA", "2.2"),
+  row("2.4.12", "隠されないフォーカス (高度)", "Focus Not Obscured (Enhanced)", "AAA", "2.2"),
+  row("2.4.13", "フォーカスの外観", "Focus Appearance", "AAA", "2.2"),
+  row("2.5.7", "ドラッグ動作", "Dragging Movements", "AA", "2.2"),
+  row("2.5.8", "ターゲットのサイズ (最低限)", "Target Size (Minimum)", "AA", "2.2"),
+  row("3.2.6", "一貫したヘルプ", "Consistent Help", "A", "2.2"),
+  row("3.3.7", "冗長な入力", "Redundant Entry", "A", "2.2"),
+  row("3.3.8", "アクセシブルな認証 (最低限)", "Accessible Authentication (Minimum)", "AA", "2.2"),
+  row("3.3.9", "アクセシブルな認証 (高度)", "Accessible Authentication (Enhanced)", "AAA", "2.2"),
+];
+
+/** WCAG 2.2 で廃止された達成基準の番号。 */
+const REMOVED_IN_22 = new Set(["4.1.1"]);
+
+const byNumber = (a: SuccessCriterion, b: SuccessCriterion): number => {
+  const x = a.id.split(".").map(Number);
+  const y = b.id.split(".").map(Number);
+  return x[0]! - y[0]! || x[1]! - y[1]! || x[2]! - y[2]!;
+};
+
+/** 指定したバージョンの WCAG に含まれる、すべての達成基準。番号の順に並ぶ。 */
+export function criteriaOf(version: WcagVersion): SuccessCriterion[] {
+  if (version === "2.1") return [...WCAG21];
+  return [...WCAG21.filter((sc) => !REMOVED_IN_22.has(sc.id)), ...WCAG22_ADDED].sort(byNumber);
+}
+
+/** 達成基準が、指定したバージョンの WCAG に含まれるか */
+export function inVersion(sc: SuccessCriterion, version: WcagVersion): boolean {
+  return version === "2.2" ? !REMOVED_IN_22.has(sc.id) : sc.since !== "2.2";
+}
+
+const BY_ID = new Map([...WCAG21, ...WCAG22_ADDED].map((c) => [c.id, c]));
 
 export function criterion(id: string): SuccessCriterion {
   const found = BY_ID.get(id);

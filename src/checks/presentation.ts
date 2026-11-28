@@ -27,6 +27,8 @@ interface TextBlock extends ElementInfo {
 
 interface StaticReport {
   smallTargets: SmallTarget[];
+  /** 24 × 24px に届かず、周りとの間隔も足りないターゲット */
+  crowdedTargets: SmallTarget[];
   textBlocks: TextBlock[];
   autoplay: (ElementInfo & { hasControls: boolean })[];
   hasMedia: boolean;
@@ -61,6 +63,27 @@ export async function checkPresentation(options: PresentationOptions): Promise<C
     }
     if (report.smallTargets.length > MAX_REPORTED) {
       notes.push(tr(`小さいターゲットは ${report.smallTargets.length} 件あり、小さい順に ${MAX_REPORTED} 件だけを報告しています。`, `${report.smallTargets.length} small targets found; only the ${MAX_REPORTED} smallest are reported.`));
+    }
+
+    for (const target of report.crowdedTargets.slice(0, MAX_REPORTED)) {
+      findings.push({
+        sc: SC.targetSizeMinimum,
+        severity: "fail",
+        selector: target.selector,
+        message: tr(
+          `押せる範囲が ${target.width} × ${target.height}px で、24 × 24px に届きません。隣の操作部品との間隔も足りないため、押し間違えやすくなっています。大きさか間隔を広げてください。`,
+          `The target is ${target.width} × ${target.height}px, smaller than 24 × 24px, and it is too close to a neighbouring control for the spacing exception to apply. Enlarge it or add spacing.`,
+        ),
+        details: { width: target.width, height: target.height, text: target.text },
+      });
+    }
+    if (report.crowdedTargets.length > MAX_REPORTED) {
+      notes.push(
+        tr(
+          `24px に届かず間隔も足りないターゲットは ${report.crowdedTargets.length} 件あり、小さい順に ${MAX_REPORTED} 件だけを報告しています。`,
+          `${report.crowdedTargets.length} targets are below 24px without enough spacing; only the ${MAX_REPORTED} smallest are reported.`,
+        ),
+      );
     }
 
     const justified = report.textBlocks.filter((b) => b.justified);
@@ -150,7 +173,7 @@ export async function checkPresentation(options: PresentationOptions): Promise<C
       viewport,
       summary: summarize(findings),
       findings,
-      checked: ["1.4.8", "2.2.2", "2.5.5", ...(report.hasMedia ? ["1.4.2"] : []), ...(report.hasFormControls ? ["1.3.5"] : [])],
+      checked: ["1.4.8", "2.2.2", "2.5.5", "2.5.8", ...(report.hasMedia ? ["1.4.2"] : []), ...(report.hasFormControls ? ["1.3.5"] : [])],
       // 音声や映像を埋め込む要素、入力欄がなければ、それぞれに関する達成基準は該当しないと推定する。
       inapplicable: [
         ...(report.hasMedia ? [] : ["1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5", "1.2.6", "1.2.7", "1.2.8", "1.2.9", "1.4.2", "1.4.7"]),
@@ -178,6 +201,8 @@ function collectStatic(minTarget: number): StaticReport {
   };
 
   const smallTargets: SmallTarget[] = [];
+  /** 画面上の操作部品の位置。24px の基準で、間隔を確かめるのに使う。 */
+  const placed: { el: Element; rect: DOMRect }[] = [];
   for (const el of document.querySelectorAll(INTERACTIVE)) {
     if ((el as HTMLInputElement).disabled || el.closest("[inert], [aria-hidden='true']")) continue;
     let rect = el.getBoundingClientRect();
@@ -192,12 +217,36 @@ function collectStatic(minTarget: number): StaticReport {
       continue;
     }
     if (rect.width <= 0 || rect.height <= 0) continue;
-    if (rect.width >= minTarget && rect.height >= minTarget) continue;
     // 文章の中に置かれたリンクは、達成基準の例外にあたる。
-    if (getComputedStyle(el).display === "inline" && hasSiblingText(el)) continue;
+    const inline = getComputedStyle(el).display === "inline" && hasSiblingText(el);
+    if (!inline) placed.push({ el, rect });
+    if (rect.width >= minTarget && rect.height >= minTarget) continue;
+    if (inline) continue;
     smallTargets.push({ ...kikori.describe(el), width: Math.round(rect.width), height: Math.round(rect.height) });
   }
   smallTargets.sort((a, b) => a.width * a.height - b.width * b.height);
+
+  // 2.5.8: 24 × 24px に届かないターゲットは、中心に置いた直径 24px の円が、ほかのターゲットにも、
+  // ほかの小さいターゲットの円にも重ならなければ、間隔による例外として認められる。
+  const MIN = 24;
+  const undersized = placed.filter(({ rect }) => rect.width < MIN || rect.height < MIN);
+  const center = (rect: DOMRect): { x: number; y: number } => ({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+  const crowdedTargets: SmallTarget[] = [];
+  for (const target of undersized) {
+    const c = center(target.rect);
+    const crowded = placed.some((other) => {
+      if (other.el === target.el || other.el.contains(target.el) || target.el.contains(other.el)) return false;
+      if (other.rect.width < MIN || other.rect.height < MIN) {
+        const o = center(other.rect);
+        return Math.hypot(c.x - o.x, c.y - o.y) < MIN;
+      }
+      const dx = Math.max(other.rect.left - c.x, 0, c.x - other.rect.right);
+      const dy = Math.max(other.rect.top - c.y, 0, c.y - other.rect.bottom);
+      return Math.hypot(dx, dy) < MIN / 2;
+    });
+    if (crowded) crowdedTargets.push({ ...kikori.describe(target.el), width: Math.round(target.rect.width), height: Math.round(target.rect.height) });
+  }
+  crowdedTargets.sort((a, b) => a.width * a.height - b.width * b.height);
 
   const textBlocks: TextBlock[] = [];
   for (const el of document.body.querySelectorAll("p, li, dd, blockquote")) {
@@ -254,7 +303,7 @@ function collectStatic(minTarget: number): StaticReport {
   }
   const hasFormControls = document.querySelector("input:not([type='hidden']), select, textarea, [contenteditable]") !== null;
 
-  return { smallTargets, textBlocks, autoplay, hasMedia, hasFormControls, missingAutocomplete };
+  return { smallTargets, crowdedTargets, textBlocks, autoplay, hasMedia, hasFormControls, missingAutocomplete };
 }
 
 /** ブラウザ側で実行する。5 秒を超えて動き続ける要素を返す。 */

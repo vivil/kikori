@@ -125,7 +125,9 @@ test("提示: 小さいターゲット、文章の体裁、動き続ける要素
 
 test("監査: 全達成基準の状態を返し、適合とは判定しない", async () => {
   const aa = await auditPage({ url: fixture("good.html") });
-  assert.equal(aa.criteria.length, 50);
+  // 既定の対象は WCAG 2.2。レベル AA までで 55 件ある。
+  assert.equal(aa.criteria.length, 55);
+  assert.equal(aa.target, "WCAG 2.2 レベル AA");
   assert.equal(aa.conformance.verdict, "undetermined");
   assert.equal(aa.conformance.counts.fail, 0);
   const status = (id: string): string | undefined => aa.criteria.find((c) => c.id === id)?.status;
@@ -133,10 +135,21 @@ test("監査: 全達成基準の状態を返し、適合とは判定しない", 
   assert.equal(status("2.4.2"), "no_issue_found");
   assert.equal(status("1.2.2"), "inapplicable");
   assert.equal(status("3.2.3"), "manual");
-  assert.equal(aa.beyondTarget[0]?.id, "2.4.11");
+  assert.equal(status("2.4.11"), "no_issue_found");
+  assert.equal(status("4.1.1"), undefined);
+  assert.deepEqual(aa.beyondTarget, []);
 
   const bad = await auditPage({ url: fixture("axe-bad.html"), level: "AAA" });
-  assert.equal(bad.criteria.length, 78);
+  assert.equal(bad.criteria.length, 86);
+
+  // 2.1 を対象にすると、2.2 で追加された達成基準は判定から外れ、検査したものだけを別に返す。
+  const old = await auditPage({ url: fixture("good.html"), wcag: "2.1" });
+  assert.equal(old.criteria.length, 50);
+  assert.equal(old.target, "WCAG 2.1 レベル AA");
+  assert.equal(old.criteria.find((c) => c.id === "4.1.1")?.status, "no_issue_found");
+  assert.equal(old.criteria.find((c) => c.id === "2.5.8"), undefined);
+  assert.ok(old.beyondTarget.some((c) => c.id === "2.4.11"));
+  assert.ok(old.beyondTarget.some((c) => c.id === "2.5.8"));
   assert.equal(bad.conformance.verdict, "nonconformant");
   assert.equal(bad.criteria.find((c) => c.id === "1.1.1")?.status, "fail");
 });
