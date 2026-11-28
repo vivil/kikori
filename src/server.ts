@@ -163,8 +163,8 @@ export function createServer(): McpServer {
     {
       title: tr("ターゲットのサイズ・視覚的提示・動きの検査 (WCAG 2.5.5 / 2.5.8 / 1.4.8 / 2.2.2 / 1.4.2 / 1.3.5)", "Target size, visual presentation and motion check (WCAG 2.5.5 / 2.5.8 / 1.4.8 / 2.2.2 / 1.4.2 / 1.3.5)"),
       description: tr(
-        "押せる範囲が 44 × 44px に届かない操作部品、24 × 24px に届かず隣との間隔も足りない操作部品、両端揃えや行の高さ・行の長さが基準を外れる文章、5 秒を超えて動き続けるアニメーション、音声つきの自動再生、autocomplete のない個人情報の入力欄を検出する。2.5.5 と 1.4.8 はレベル AAA、2.5.8 は WCAG 2.2 のレベル AA の達成基準。",
-        "Detects controls whose target is smaller than 44 × 44px, controls below 24 × 24px that are also too close to a neighbour, text that is justified or whose line height or line length is out of range, animations that keep moving for more than 5 seconds, autoplaying media with sound, and personal-data fields without autocomplete. 2.5.5 and 1.4.8 are Level AAA criteria; 2.5.8 is a Level AA criterion of WCAG 2.2.",
+        "押せる範囲が 44 × 44px に届かない操作部品、24 × 24px に届かず隣との間隔も足りない操作部品、両端揃えや行の高さ・行の長さが基準を外れる文章、5 秒を超えて動き続けるアニメーションや表示 (アニメーションの宣言と、5 秒後に撮り比べた画面から見つける)、音声つきの自動再生、autocomplete のない個人情報の入力欄を検出する。2.5.5 と 1.4.8 はレベル AAA、2.5.8 は WCAG 2.2 のレベル AA の達成基準。",
+        "Detects controls whose target is smaller than 44 × 44px, controls below 24 × 24px that are also too close to a neighbour, text that is justified or whose line height or line length is out of range, animations and other content that keep moving for more than 5 seconds (found from the declared animations and by comparing screenshots taken after 5 seconds), autoplaying media with sound, and personal-data fields without autocomplete. 2.5.5 and 1.4.8 are Level AAA criteria; 2.5.8 is a Level AA criterion of WCAG 2.2.",
       ),
       inputSchema: { ...common, ...viewport },
       annotations,

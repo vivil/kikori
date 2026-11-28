@@ -123,6 +123,22 @@ test("提示: 小さいターゲット、文章の体裁、動き続ける要素
   assert.ok(result.inapplicable?.includes("1.2.2"));
 });
 
+test("見た目: 宣言のない動きを、画面の撮り比べから見つける", async () => {
+  const result = await checkPresentation({ url: fixture("motion-bad.html") });
+  const moving = result.findings.filter((f) => f.sc.id === "2.2.2");
+  // スクリプトが書き換え続ける部分は、撮り比べで見つかる。
+  const ticker = moving.find((f) => f.selector === "#ticker");
+  assert.equal(ticker?.severity, "review");
+  assert.equal(ticker?.details?.detectedBy, "frames");
+  // CSS のアニメーションは宣言から見つかり、撮り比べの側では重ねて報告しない。
+  assert.deepEqual(moving.filter((f) => f.selector === "#spinner").map((f) => f.details?.detectedBy), ["declared"]);
+  assert.ok(!moving.some((f) => f.selector === "#still"));
+
+  // 動きのないページでは、何も報告しない。
+  const quiet = await checkPresentation({ url: fixture("good.html") });
+  assert.ok(!quiet.findings.some((f) => f.sc.id === "2.2.2"));
+});
+
 test("監査: 全達成基準の状態を返し、適合とは判定しない", async () => {
   const aa = await auditPage({ url: fixture("good.html") });
   // 既定の対象は WCAG 2.2。レベル AA までで 55 件ある。
