@@ -10,6 +10,8 @@ export interface PresentationOptions {
   height?: number;
   waitForSelector?: string;
   waitMs?: number;
+  /** 画面を撮り比べて、宣言のない動きを探すか。5 秒待つので、省くと速くなる。既定値は true。 */
+  motion?: boolean;
 }
 
 interface SmallTarget extends ElementInfo {
@@ -174,14 +176,23 @@ export async function checkPresentation(options: PresentationOptions): Promise<C
 
     // 宣言のない動き (スクリプトによる書き換え、動画、GIF、canvas) は、画面を撮り比べて見つける。
     // 2.2.2 が問題にするのは 5 秒を超えて続く動きなので、読み込みから 5 秒が過ぎるのを待つ。
-    await page.waitForTimeout(Math.max(0, MOTION_AFTER_MS - (Date.now() - loadedAt)));
-    const frames = [];
-    for (let i = 0; i < MOTION_FRAMES; i++) {
-      if (i > 0) await page.waitForTimeout(MOTION_INTERVAL_MS);
-      frames.push(decodePng(await page.screenshot({ type: "png", caret: "hide" })));
-    }
     const regions: Region[] = [];
-    for (let i = 1; i < frames.length; i++) regions.push(...changedRegions(frames[i - 1]!, frames[i]!));
+    if (options.motion === false) {
+      notes.push(
+        tr(
+          "motion に false が指定されたため、画面の撮り比べは行っていません。スクリプト、動画、GIF、canvas による動きは、2.2.2 の検査に含まれていません。",
+          "motion was set to false, so screenshots were not compared. Motion made by scripts, videos, GIFs and canvas is not covered by the 2.2.2 check.",
+        ),
+      );
+    } else {
+      await page.waitForTimeout(Math.max(0, MOTION_AFTER_MS - (Date.now() - loadedAt)));
+      const frames = [];
+      for (let i = 0; i < MOTION_FRAMES; i++) {
+        if (i > 0) await page.waitForTimeout(MOTION_INTERVAL_MS);
+        frames.push(decodePng(await page.screenshot({ type: "png", caret: "hide" })));
+      }
+      for (let i = 1; i < frames.length; i++) regions.push(...changedRegions(frames[i - 1]!, frames[i]!));
+    }
     const undeclared = await page.evaluate(locateMotion, { regions: regions.slice(0, 60), declared: moving.map((m) => m.selector) });
     for (const el of undeclared.slice(0, MAX_REPORTED)) {
       findings.push({

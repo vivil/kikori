@@ -18,6 +18,8 @@ export interface SiteOptions {
   wcag?: WcagVersion;
   /** サイト全体に対する判断。達成基準の一覧に反映する。 */
   judgments?: Judgment[];
+  /** 画面を撮り比べて、宣言のない動きを探すか。既定値は true。 */
+  motion?: boolean;
   waitForSelector?: string;
   waitMs?: number;
 }
@@ -105,7 +107,7 @@ export async function auditSite(options: SiteOptions): Promise<SiteResult> {
 
   const perPage: CheckResult[][] = [];
   for (const snapshot of snapshots) {
-    perPage.push((await auditPage({ url: snapshot.url, level, wcag: version, ...wait })).results);
+    perPage.push((await auditPage({ url: snapshot.url, level, wcag: version, ...wait, ...(options.motion === false ? { motion: false } : {}) })).results);
   }
 
   const all = [...perPage.flat(), crossPage];

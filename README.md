@@ -277,6 +277,7 @@ Every tool requires `url`, which may be an `http`, `https` or `file` URL.
 | `level` | `audit_site`, `audit_page`, `check_axe` | Target conformance level (`A`, `AA`, `AAA`). Default `AA` |
 | `wcag` | `audit_site`, `audit_page`, `check_axe` | WCAG version (`2.2` or `2.1`). Default `2.2` |
 | `judgments` | `audit_site`, `audit_page` | Judgments made by a model or a person |
+| `motion` | `audit_site`, `audit_page`, `check_presentation` | Whether to compare screenshots to find moving content. Default `true`; `false` skips the 5-second wait |
 | `criteria` / `screenshot` | `collect_evidence` | Criteria to gather material for, and whether to attach a screenshot |
 | `selector` / `fullPage` | `capture_screenshot` | Element to capture, and whether to capture the full page |
 | `width` / `height` | Individual checks | Viewport size. Default 320 × 256 for reflow, 1280 × 720 otherwise |
@@ -325,7 +326,7 @@ There are two severities.
 - The checks for the criteria added in WCAG 2.2 are heuristics. 2.4.13 is judged from the `outline` style, not from the pixels of the indicator. 3.3.8 looks for password fields and common CAPTCHA markup, and does not follow a login flow.
 - When a page has no media or no form fields, the related criteria are presumed not to apply. Elements loaded later may be missed.
 - `check_interaction` blocks navigation requests and non-GET requests while it operates the page. It does not change data on the server, but a site that changes state on GET may still be affected.
-- Moving content (2.2.2) is found in two ways: from the animations the page declares with CSS or the Web Animations API, and by comparing screenshots taken more than 5 seconds after load. The second way also catches changes made by scripts, videos, GIFs and canvas. It only sees the part of the page inside the viewport, and it cannot tell whether the content can be paused, so every finding is for review. `check_presentation` therefore takes about 6 seconds. `audit_page` runs it alongside the other checks, which adds about 2 seconds per page.
+- Moving content (2.2.2) is found in two ways: from the animations the page declares with CSS or the Web Animations API, and by comparing screenshots taken more than 5 seconds after load. The second way also catches changes made by scripts, videos, GIFs and canvas. It only sees the part of the page inside the viewport, and it cannot tell whether the content can be paused, so every finding is for review. `check_presentation` therefore takes about 6 seconds. `audit_page` runs it alongside the other checks, which adds about 2 seconds per page. Pass `motion: false` to skip the comparison when speed matters more; the result then says so in `notes`.
 - Hover content is detected only if it appears within 250 milliseconds. Native tooltips from the `title` attribute are out of scope.
 - Detection of framework event handlers has been verified with React, Vue and Angular samples. React receives events in one place, so handlers are read from internal properties on the elements. With a framework built the same way whose properties cannot be read, 2.5.1 and 2.5.2 become `needs_judgment`.
 - Pointer handlers registered directly on `window` are not detected, because they cannot be told apart from the ones Playwright registers there.

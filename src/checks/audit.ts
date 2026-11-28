@@ -24,6 +24,8 @@ export interface AuditOptions {
   judgments?: Judgment[];
   waitForSelector?: string;
   waitMs?: number;
+  /** 画面を撮り比べて、宣言のない動きを探すか。既定値は true。 */
+  motion?: boolean;
 }
 
 /**

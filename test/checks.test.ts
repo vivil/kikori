@@ -134,6 +134,11 @@ test("見た目: 宣言のない動きを、画面の撮り比べから見つけ
   assert.deepEqual(moving.filter((f) => f.selector === "#spinner").map((f) => f.details?.detectedBy), ["declared"]);
   assert.ok(!moving.some((f) => f.selector === "#still"));
 
+  // 呼び出すときに撮り比べを省くと、宣言のある動きだけを報告し、省いたことを知らせる。
+  const skipped = await checkPresentation({ url: fixture("motion-bad.html"), motion: false });
+  assert.deepEqual(skipped.findings.filter((f) => f.sc.id === "2.2.2").map((f) => f.selector), ["#spinner"]);
+  assert.ok(skipped.notes?.some((note) => /撮り比べは行っていません/.test(note)));
+
   // 動きのないページでは、何も報告しない。
   const quiet = await checkPresentation({ url: fixture("good.html") });
   assert.ok(!quiet.findings.some((f) => f.sc.id === "2.2.2"));
