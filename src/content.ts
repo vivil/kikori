@@ -60,7 +60,7 @@ const en: Content = {
       { key: "automatic", label: "kikori, automatic checks", value: 59.1, count: 179 },
       { key: "axe", label: "axe-core alone", value: 53.5, count: 162 },
     ],
-    note: "For the outer ring Claude was the judging model, with the expected outcomes hidden. It adds some false alarms: precision is 97.0%, against 99.4% for the automatic checks and 100% for axe-core. This is not a formal ACT implementation report.",
+    note: "The result with a model's judgment comes from Claude, judging with the expected outcomes hidden. The judgment adds some false alarms: precision is 97.0%, against 99.4% for the automatic checks and 100% for axe-core. This is not a formal ACT implementation report.",
     noteLink: "Method, limits and per-rule numbers",
   },
   beyond: {
@@ -91,7 +91,7 @@ const en: Content = {
     caption: "The tools kikori provides",
     columns: ["Tool", "Success criteria", "What it does"],
     rows: [
-      ["audit_page", "All of WCAG 2.2 or 2.1", "Runs every check below and returns a status for each criterion"],
+      ["audit_page", "All of WCAG 2.2 or 2.1", "Runs every other check and returns a status for each criterion"],
       ["audit_site", "All of WCAG 2.2 or 2.1", "Audits several pages and compares them for consistency"],
       ["check_axe", "Criteria covered by axe-core", "Text alternatives, contrast, labels, ARIA, language and more"],
       ["check_reflow", "1.4.4, 1.4.10", "Horizontal scrolling, overflow and clipped text at 320px and 200% zoom"],
@@ -174,7 +174,7 @@ const ja: Content = {
       { key: "automatic", label: "kikori の自動検査のみ", value: 59.1, count: 179 },
       { key: "axe", label: "axe-core 単体", value: 53.5, count: 162 },
     ],
-    note: "外側の輪は、正解を見せずに Claude に判断させたときの結果です。モデルに判断させると誤検出も少し増え、適合率は 97.0% になります。自動検査のみなら 99.4%、axe-core 単体なら 100% です。なお、これは ACT の正式な実装報告ではありません。",
+    note: "モデルの判断を加えた場合の結果は、正解を見せずに Claude に判断させたものです。モデルに判断させると誤検出も少し増え、適合率は 97.0% になります。自動検査のみなら 99.4%、axe-core 単体なら 100% です。なお、これは ACT の正式な実装報告ではありません。",
     noteLink: "計測方法と限界、ルールごとの結果 (英語)",
   },
   beyond: {
@@ -205,7 +205,7 @@ const ja: Content = {
     caption: "kikori が提供するツール",
     columns: ["ツール", "対象の達成基準", "できること"],
     rows: [
-      ["audit_page", "WCAG 2.2 または 2.1 のすべて", "下の検査をすべて実行し、達成基準ごとの結果を返します"],
+      ["audit_page", "WCAG 2.2 または 2.1 のすべて", "ほかの検査をすべて実行し、達成基準ごとの結果を返します"],
       ["audit_site", "WCAG 2.2 または 2.1 のすべて", "複数のページを監査し、ページどうしの一貫性も比べます"],
       ["check_axe", "axe-core が扱う達成基準", "代替テキスト、コントラスト、ラベル、ARIA、言語の指定などを調べます"],
       ["check_reflow", "1.4.4、1.4.10", "幅 320px と 200% 拡大で、横スクロール、はみ出し、文字切れを調べます"],
