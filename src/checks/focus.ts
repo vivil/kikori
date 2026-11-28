@@ -1,6 +1,7 @@
 import { tr } from "../../packages/core/src/i18n.js";
 import type { Page } from "playwright";
 import { withPage } from "../browser.js";
+import { changedOutsideMotion, decodePng } from "../pixels.js";
 import { SC, summarize, type CheckResult, type Finding } from "../../packages/core/src/types.js";
 import type { ElementInfo } from "../helpers.js";
 import { collectListeners } from "../listeners.js";
@@ -74,6 +75,12 @@ export async function checkKeyboardFocus(options: FocusOptions): Promise<CheckRe
     const sequence: SequenceEntry[] = [];
     let previous: Extract<FocusState, { kind: "element" }> | undefined;
     let frameSteps = 0;
+    // スクリプト、動画、GIF などで動き続ける部分があると、フォーカスの有無と関係なく画面が変わる。
+    // そうしたページかどうかを、先に 2 枚撮り比べて確かめておく。
+    const still = { animations: "disabled", caret: "hide" } as const;
+    const before = await page.screenshot(still);
+    await page.waitForTimeout(250);
+    const ambientMotion = !before.equals(await page.screenshot(still));
     let completed = false;
     let backwardJumps = 0;
     let contextChanged = false;
@@ -150,7 +157,7 @@ export async function checkKeyboardFocus(options: FocusOptions): Promise<CheckRe
       if (state.isFrame) {
         notes.push(tr(`${state.info.selector} は iframe です。中の要素は順序の一覧に含めておらず、フォーカス表示も検査していません。`, `${state.info.selector} is an iframe. Elements inside it are not listed in the sequence and their focus indicators were not checked.`));
       } else {
-        findings.push(...(await inspectIndicator(page, state)));
+        findings.push(...(await inspectIndicator(page, state, ambientMotion)));
       }
 
       if (previous && !previous.pinned && !state.pinned && !previous.visuallyHidden && !state.visuallyHidden) {
@@ -240,7 +247,7 @@ function withoutHash(url: string): string {
 }
 
 /** フォーカス中の要素について、表示の有無と隠れ具合を調べる。 */
-async function inspectIndicator(page: Page, state: Extract<FocusState, { kind: "element" }>): Promise<Finding[]> {
+async function inspectIndicator(page: Page, state: Extract<FocusState, { kind: "element" }>, ambientMotion: boolean): Promise<Finding[]> {
   const findings: Finding[] = [];
   const { info } = state;
 
@@ -259,10 +266,32 @@ async function inspectIndicator(page: Page, state: Extract<FocusState, { kind: "
   const focused = await page.screenshot(shot);
   await page.evaluate((index) => window.__kikoriFocus.blur(index), state.index);
   const blurred = await page.screenshot(shot);
+  // 動き続ける部分があるページでは、フォーカスを外したままもう 1 枚撮り、その動きを差し引いて比べる。
+  let indicatorShown = !focused.equals(blurred);
+  let unsettled = false;
+  if (indicatorShown && ambientMotion) {
+    const again = await page.screenshot(shot);
+    if (!again.equals(blurred)) {
+      indicatorShown = changedOutsideMotion(decodePng(focused), decodePng(blurred), [decodePng(blurred), decodePng(again)]);
+      unsettled = !indicatorShown;
+    }
+  }
   await page.evaluate((index) => window.__kikoriFocus.refocus(index), state.index);
 
+  if (unsettled && state.obscured !== "full") {
+    findings.push({
+      sc: SC.focusVisible,
+      severity: "review",
+      selector: info.selector,
+      message: tr(
+        "この要素の表示が動き続けているため、フォーカス表示があるかどうかを画像から判断できませんでした。フォーカスしたときに見た目が変わるか、確認してください。",
+        "This element keeps changing on screen, so the screenshots could not show whether it has a focus indicator. Check that its appearance changes on focus.",
+      ),
+      details: { text: info.text, outline: state.outline },
+    });
+  }
+
   // 全体が隠れている要素は、表示の有無を見分けられないので 2.4.11 だけを報告する。
-  const indicatorShown = !focused.equals(blurred);
   if (state.obscured !== "full" && focused.equals(blurred)) {
     findings.push(
       state.editable

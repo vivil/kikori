@@ -77,12 +77,8 @@ export interface Region {
   height: number;
 }
 
-/**
- * 2 枚の画像を升目に区切って比べ、変化した升目をつながりごとにまとめて返す。
- * tolerance は、色の成分ごとに見逃す差の大きさ。圧縮や描画のゆらぎを拾わないためのもの。
- */
-export function changedRegions(a: Bitmap, b: Bitmap, cell = 16, tolerance = 12): Region[] {
-  if (a.width !== b.width || a.height !== b.height) return [{ x: 0, y: 0, width: Math.min(a.width, b.width), height: Math.min(a.height, b.height) }];
+/** 2 枚の画像を升目に区切って比べ、変化した升目に印を付ける。大きさは同じでなければならない。 */
+function changedCells(a: Bitmap, b: Bitmap, cell: number, tolerance: number): { columns: number; rows: number; changed: Uint8Array } {
   const columns = Math.ceil(a.width / cell);
   const rows = Math.ceil(a.height / cell);
   const changed = new Uint8Array(columns * rows);
@@ -96,6 +92,45 @@ export function changedRegions(a: Bitmap, b: Bitmap, cell = 16, tolerance = 12):
       }
     }
   }
+  return { columns, rows, changed };
+}
+
+/**
+ * 1 枚目と 2 枚目の違いのうち、もともと動き続けている部分を除いたものが残るかを返す。
+ * moving には、同じ状態で続けて撮った 2 枚を渡す。その 2 枚の間で変わった升目と、その隣の升目は、比較から外す。
+ */
+export function changedOutsideMotion(a: Bitmap, b: Bitmap, moving: [Bitmap, Bitmap], cell = 8, tolerance = 12): boolean {
+  if (a.width !== b.width || a.height !== b.height) return true;
+  const difference = changedCells(a, b, cell, tolerance);
+  const noise = changedCells(moving[0], moving[1], cell, tolerance);
+  const { columns, rows } = difference;
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < columns; x++) {
+      if (!difference.changed[y * columns + x]) continue;
+      let nearNoise = false;
+      for (let dy = -1; dy <= 1 && !nearNoise; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx >= 0 && ny >= 0 && nx < columns && ny < rows && noise.changed[ny * columns + nx]) {
+            nearNoise = true;
+            break;
+          }
+        }
+      }
+      if (!nearNoise) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * 2 枚の画像を升目に区切って比べ、変化した升目をつながりごとにまとめて返す。
+ * tolerance は、色の成分ごとに見逃す差の大きさ。圧縮や描画のゆらぎを拾わないためのもの。
+ */
+export function changedRegions(a: Bitmap, b: Bitmap, cell = 16, tolerance = 12): Region[] {
+  if (a.width !== b.width || a.height !== b.height) return [{ x: 0, y: 0, width: Math.min(a.width, b.width), height: Math.min(a.height, b.height) }];
+  const { columns, rows, changed } = changedCells(a, b, cell, tolerance);
   // 隣り合う升目を 1 つの範囲にまとめる。
   const regions: Region[] = [];
   const seen = new Uint8Array(columns * rows);

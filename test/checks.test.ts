@@ -123,6 +123,16 @@ test("提示: 小さいターゲット、文章の体裁、動き続ける要素
   assert.ok(result.inapplicable?.includes("1.2.2"));
 });
 
+test("キーボード: 動き続ける要素では、その動きを差し引いてフォーカス表示を見分ける", async () => {
+  const result = await checkKeyboardFocus({ url: fixture("focus-motion.html") });
+  const visible = result.findings.filter((f) => f.sc.id === "2.4.7");
+  // 表示のないボタンは、中の印が動いていても、表示ありとは扱わない。
+  assert.deepEqual(visible.filter((f) => f.selector === "#no-ring").map((f) => f.severity), ["review"]);
+  // 外側に出る表示は、動きの外にあるので見分けられる。
+  assert.ok(!visible.some((f) => f.selector === "#with-ring"));
+  assert.ok(!visible.some((f) => f.selector === "#quiet"));
+});
+
 test("見た目: 宣言のない動きを、画面の撮り比べから見つける", async () => {
   const result = await checkPresentation({ url: fixture("motion-bad.html") });
   const moving = result.findings.filter((f) => f.sc.id === "2.2.2");

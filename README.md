@@ -317,7 +317,7 @@ There are two severities.
 
 - Reflow compares 320px wide against a 1280px baseline. Text that is already clipped at the baseline is not reported.
 - Text spacing compares before and after the style override. Text that already overlaps is not reported.
-- Focus indicators are detected by comparing a screenshot taken while focused with one taken right after blurring. Because focus is removed once along the way, results can be off on pages that show a validation error on `blur`.
+- Focus indicators are detected by comparing a screenshot taken while focused with one taken right after blurring. Because focus is removed once along the way, results can be off on pages that show a validation error on `blur`. On a page where something keeps moving (scripts, videos, GIFs), kikori takes one more screenshot without focus and leaves the moving part out of the comparison. When the whole element keeps moving, it cannot tell and reports the element for review. A change that happens to fall between the screenshots can still be missed.
 - Iframe loads are blocked by default. Even when allowed with `--allow-frame-host`, elements inside iframes are outside the axe and focus checks.
 - Line length is an estimate that counts a CJK character as 1em and a Latin character as 0.5em.
 - `audit_page` works on one page. Criteria that compare pages, such as 3.2.3 and 3.2.4, come back as `manual`; use `audit_site` for those.

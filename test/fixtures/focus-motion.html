@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>動き続けるボタン</title>
+<style>
+  body { font-family: sans-serif; margin: 40px; }
+  button { display: block; margin-bottom: 40px; padding: 12px 16px; font-size: 16px; }
+  .dot { display: inline-block; width: 12px; height: 12px; margin-right: 8px; }
+  #no-ring:focus { outline: none; }
+  #with-ring:focus { outline: 4px solid #0a58ca; outline-offset: 4px; }
+</style>
+</head>
+<body>
+<h1>動き続けるボタン</h1>
+<button id="no-ring" type="button"><span class="dot"></span>表示のないボタン</button>
+<button id="with-ring" type="button"><span class="dot"></span>表示のあるボタン</button>
+<button id="quiet" type="button">動かないボタン</button>
+<script>
+  // ボタンの中の印の色を、スクリプトで変え続ける。
+  let n = 0;
+  setInterval(() => {
+    n += 37;
+    for (const dot of document.querySelectorAll(".dot")) dot.style.background = `rgb(${n % 256}, ${(n * 3) % 256}, ${(n * 7) % 256})`;
+  }, 16);
+</script>
+</body>
+</html>
