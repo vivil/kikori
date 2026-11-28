@@ -46,8 +46,8 @@ function Page({ t }: { t: Content }) {
             brandHref={home}
             brand={
               <span className="brand">
-                <img className="brand__logo brand__logo--light" src={`${import.meta.env.BASE_URL}kikori-logo-light.svg`} alt="kikori" width="118" height="34" />
-                <img className="brand__logo brand__logo--dark" src={`${import.meta.env.BASE_URL}kikori-logo-dark.svg`} alt="kikori" width="118" height="34" />
+                <img className="brand__logo brand__logo--light" src={`${t.root}kikori-logo-light.svg`} alt="kikori" width="118" height="34" />
+                <img className="brand__logo brand__logo--dark" src={`${t.root}kikori-logo-dark.svg`} alt="kikori" width="118" height="34" />
               </span>
             }
           >

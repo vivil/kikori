@@ -9,6 +9,8 @@ export interface Ring {
 
 export interface Content {
   locale: Locale;
+  /** Path from this page to the top of the site, where the shared files are. */
+  root: string;
   otherLocale: { label: string; href: string; lang: Locale };
   meta: { title: string; description: string };
   nav: { label: string; compare: string; how: string; checks: string; start: string; github: string; theme: { toDark: string; toLight: string }; skip: string };
@@ -26,6 +28,7 @@ const REPO = "https://github.com/vivil/kikori";
 
 const en: Content = {
   locale: "en",
+  root: "./",
   otherLocale: { label: "日本語", href: "ja/", lang: "ja" },
   meta: {
     title: "kikori: WCAG audits that go past what axe-core can check",
@@ -140,6 +143,7 @@ const en: Content = {
 
 const ja: Content = {
   locale: "ja",
+  root: "../",
   otherLocale: { label: "English", href: "../", lang: "en" },
   meta: {
     title: "kikori: axe-core の先まで調べる WCAG 監査",

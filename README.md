@@ -1,6 +1,6 @@
 # kikori website
 
-The source of the [kikori](https://github.com/vivil/kikori) website, published at <https://vivil.github.io/kikori/>.
+The source of the [kikori](https://github.com/vivil/kikori) website, published at <https://kikori.dev/>.
 
 This branch holds only the website. The kikori packages live on the `main` branch.
 
@@ -17,7 +17,7 @@ This branch holds only the website. The kikori packages live on the `main` branc
 npm ci
 npm run dev       # local server with live reload
 npm run build     # fonts, type check, bundle and prerender into dist/
-npm run preview   # serve dist/ at http://localhost:4173/kikori/
+npm run preview   # serve dist/ at http://localhost:4173/
 ```
 
 The images shown when a link to the site is shared (`public/og-en.png`, `public/og-ja.png`) are drawn by `scripts/og-image.mjs`. It needs Playwright, which is not a dependency of the site. Run it again when the headline, the logo or the benchmark numbers change.
@@ -26,11 +26,11 @@ After changing any text, run `npm run build` (or `npm run fonts`) so that the fo
 
 ## Publish
 
-Pushing to this branch runs `.github/workflows/pages.yml`, which builds the site and deploys it to GitHub Pages. In the repository settings, Pages uses "GitHub Actions" as its source, and the `github-pages` environment allows deployments from the `docs` branch.
+Pushing to this branch runs `.github/workflows/pages.yml`, which builds the site and deploys it to GitHub Pages. In the repository settings, Pages uses "GitHub Actions" as its source, the `github-pages` environment allows deployments from the `docs` branch, and the custom domain is `kikori.dev`. The old address, `vivil.github.io/kikori/`, redirects to the domain.
 
 ## Accessibility
 
-The site is audited with kikori itself. Start `npm run preview` and audit `http://localhost:4173/kikori/` and `http://localhost:4173/kikori/ja/`.
+The site is audited with kikori itself. Start `npm run preview` and audit `http://localhost:4173/` and `http://localhost:4173/ja/`.
 
 ## Licenses
 
