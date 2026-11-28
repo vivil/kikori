@@ -4,8 +4,8 @@ import { auditPage } from "../src/checks/audit.js";
 import { checkKeyboardFocus } from "../src/checks/focus.js";
 import { checkInteraction } from "../src/checks/interaction.js";
 import { checkPresentation } from "../src/checks/presentation.js";
-import { criteriaOf } from "../src/criteria.js";
-import type { CheckResult, Severity } from "../src/types.js";
+import { criteriaOf } from "../packages/core/src/criteria.js";
+import type { CheckResult, Severity } from "../packages/core/src/types.js";
 
 const fixture = (name: string): string => new URL(`../../test/fixtures/${name}`, import.meta.url).href;
 const url = fixture("wcag22-bad.html");

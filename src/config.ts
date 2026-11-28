@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { detectLang, setLang } from "../packages/core/src/i18n.js";
 
 /**
  * サーバーの起動時に決める設定。検査対象の範囲は人が決めるもので、
@@ -46,14 +47,6 @@ function splitList(value: string | undefined): string[] {
     .filter((item) => item !== "");
 }
 
-/** 指定がなければ、利用者の環境の言語設定に合わせる。日本語でなければ英語にする。 */
-function detectLang(env: NodeJS.ProcessEnv): "ja" | "en" {
-  const explicit = env.KIKORI_LANG?.toLowerCase();
-  if (explicit === "ja" || explicit === "en") return explicit;
-  const locale = env.LC_ALL || env.LC_MESSAGES || env.LANG || "";
-  return locale.toLowerCase().startsWith("ja") ? "ja" : "en";
-}
-
 function fromEnvironment(env: NodeJS.ProcessEnv): Settings {
   const hosts = splitList(env.KIKORI_ALLOWED_HOSTS);
   return {
@@ -75,6 +68,8 @@ export function getSettings(): Settings {
 
 export function configure(settings: Settings): void {
   current = settings;
+  // 文面の言語は核が持つ。設定を変えたら、そちらにも伝える。
+  setLang(settings.lang);
 }
 
 const USAGE_JA = `使い方: kikori [オプション]

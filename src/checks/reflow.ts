@@ -1,6 +1,6 @@
-import { tr } from "../i18n.js";
+import { tr } from "../../packages/core/src/i18n.js";
 import { withPage } from "../browser.js";
-import { SC, summarize, type CheckResult, type Finding } from "../types.js";
+import { SC, summarize, type CheckResult, type Finding } from "../../packages/core/src/types.js";
 import type { ElementInfo } from "../helpers.js";
 
 export interface ReflowOptions {

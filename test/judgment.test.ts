@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { auditPage } from "../src/checks/audit.js";
 import { checkInteraction } from "../src/checks/interaction.js";
 import { captureScreenshot, collectEvidence } from "../src/evidence.js";
-import type { CheckResult, Severity } from "../src/types.js";
+import type { CheckResult, Severity } from "../packages/core/src/types.js";
 
 const fixture = (name: string): string => new URL(`../../test/fixtures/${name}`, import.meta.url).href;
 const has = (result: CheckResult, sc: string, severity: Severity, selector: string): boolean =>

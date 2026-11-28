@@ -1,0 +1,50 @@
+{
+  "name": "kikori-mobile",
+  "version": "0.1.0",
+  "description": "Kikori for mobile apps: an experimental MCP server that checks the screen of an Android app against WCAG",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "accessibility",
+    "a11y",
+    "wcag",
+    "android",
+    "talkback",
+    "audit"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vivil/kikori.git",
+    "directory": "packages/mobile"
+  },
+  "homepage": "https://github.com/vivil/kikori/tree/main/packages/mobile#readme",
+  "bugs": {
+    "url": "https://github.com/vivil/kikori/issues"
+  },
+  "type": "module",
+  "bin": {
+    "kikori-mobile": "dist/mobile/src/index.js"
+  },
+  "files": [
+    "dist/mobile/src",
+    "dist/core/src",
+    "README.md",
+    "README.ja.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "npm run clean && tsc -p tsconfig.json",
+    "start": "node dist/mobile/src/index.js",
+    "test": "npm run build && KIKORI_LANG=ja node --test \"dist/mobile/test/*.test.js\"",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "zod": "^4.6.7"
+  }
+}

@@ -9,7 +9,7 @@ import { checkKeyboardFocus } from "./checks/focus.js";
 import { checkReflow } from "./checks/reflow.js";
 import { checkTextSpacing } from "./checks/textSpacing.js";
 import { captureScreenshot, collectEvidence, JUDGEABLE } from "./evidence.js";
-import { tr } from "./i18n.js";
+import { tr } from "../packages/core/src/i18n.js";
 import { packageVersion } from "./install.js";
 
 const annotations = { readOnlyHint: true, openWorldHint: true } as const;

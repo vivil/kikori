@@ -28,6 +28,7 @@
   },
   "files": [
     "dist/src",
+    "dist/packages/core/src",
     "README.md",
     "README.ja.md",
     "LICENSE"
@@ -64,5 +65,8 @@
     "rxjs": "^7.8.2",
     "typescript": "^7.0.2",
     "vue": "^3.5.46"
-  }
+  },
+  "workspaces": [
+    "packages/mobile"
+  ]
 }

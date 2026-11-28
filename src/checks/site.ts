@@ -1,9 +1,10 @@
-import { tr } from "../i18n.js";
+import { tr } from "../../packages/core/src/i18n.js";
 import { auditPage, limitToLevel, summarizeCriteria, type CriterionRow, type CriterionStatus, type Judgment, type Verdict } from "./audit.js";
 import { assertAllowedUrl, withPage } from "../browser.js";
 import { getSettings } from "../config.js";
-import type { Level, WcagVersion } from "../criteria.js";
-import { SC, summarize, type CheckResult, type Finding } from "../types.js";
+import type { Level, WcagVersion } from "../../packages/core/src/criteria.js";
+import { SC, summarize, type CheckResult, type Finding } from "../../packages/core/src/types.js";
+import { CORE_VERSION } from "../../packages/core/src/version.js";
 
 export interface SiteOptions {
   /** 起点のページ。urls を省いたときは、ここから同じサイト内のリンクをたどる。 */
@@ -51,6 +52,8 @@ export interface PageSnapshot {
 }
 
 export interface SiteResult {
+  /** 達成基準の一覧と状態のまとめ方を決めている、核のバージョン */
+  coreVersion: string;
   target: string;
   pages: { url: string; title: string; summary: { fail: number; review: number }; findings: Finding[] }[];
   conformance: { verdict: Verdict; explanation: string; counts: Record<CriterionStatus, number> };
@@ -109,6 +112,7 @@ export async function auditSite(options: SiteOptions): Promise<SiteResult> {
   const { criteria, beyondTarget, counts, verdict, explanation } = summarizeCriteria(all, level, options.judgments, version);
 
   return {
+    coreVersion: CORE_VERSION,
     target: tr(`WCAG ${version} レベル ${level} (${snapshots.length} ページ)`, `WCAG ${version} Level ${level} (${snapshots.length} pages)`),
     pages: snapshots.map((snapshot, i) => {
       const findings = perPage[i]!.flatMap((r) => r.findings);

@@ -1,9 +1,9 @@
-import { lang, tr } from "../i18n.js";
+import { lang, tr } from "../../packages/core/src/i18n.js";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { withPage } from "../browser.js";
-import { findCriterion, inVersion, withinLevel, type Level, type SuccessCriterion, type WcagVersion } from "../criteria.js";
-import { summarize, type CheckResult, type Finding } from "../types.js";
+import { findCriterion, inVersion, withinLevel, type Level, type SuccessCriterion, type WcagVersion } from "../../packages/core/src/criteria.js";
+import { summarize, type CheckResult, type Finding } from "../../packages/core/src/types.js";
 
 export interface AxeOptions {
   url: string;
