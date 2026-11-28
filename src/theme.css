@@ -1,4 +1,24 @@
 /*
+ * LINE Seed JP, cut down to the characters this site uses (see scripts/subset-fonts.mjs).
+ * Two weights are enough: bold text falls on the heavier one.
+ */
+@font-face {
+  font-family: "LINE Seed JP";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/line-seed-jp-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "LINE Seed JP";
+  font-style: normal;
+  font-weight: 600 900;
+  font-display: swap;
+  src: url("./fonts/line-seed-jp-800.woff2") format("woff2");
+}
+
+/*
  * kikori: the colours of the logo, carried through the page.
  * Bark and sapwood come from the mark. Steel is the axe head, moss and resin are what grows on the wood.
  */
@@ -308,13 +328,13 @@ code {
   padding: 0.5rem 0.5rem 0.5rem 1.1rem;
   background: var(--bark);
   color: var(--sapwood);
-  border-radius: 999px;
+  border-radius: 1.75rem;
   border: 2px solid var(--stump-bark);
 }
 
+/* The command wraps on a narrow screen, so that it never has to be scrolled sideways. */
 .install__code {
-  overflow-x: auto;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
   font-size: 0.95rem;
 }
 
@@ -406,6 +426,17 @@ code {
     opacity: 1;
     transform: none;
   }
+}
+
+/* Pointing at a row of the legend picks out its ring. */
+.rings__arc {
+  transition: opacity 180ms ease-out;
+}
+
+.hero__figure:has(.legend__item--judged:hover) .rings__arc:not(.rings__arc--judged),
+.hero__figure:has(.legend__item--automatic:hover) .rings__arc:not(.rings__arc--automatic),
+.hero__figure:has(.legend__item--axe:hover) .rings__arc:not(.rings__arc--axe) {
+  opacity: 0.22;
 }
 
 .rings-title {
@@ -660,5 +691,6 @@ code {
   .rings__arc,
   .rings__cut {
     animation: none;
+    transition: none;
   }
 }
