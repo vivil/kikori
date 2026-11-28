@@ -12,7 +12,7 @@ const root = new URL("../", import.meta.url);
 const read = (file) => readFileSync(new URL(file, root), "utf8");
 
 // Every file that holds text shown on the page.
-const SOURCES = ["src/content.ts", "src/App.tsx", "index.html", "ja/index.html"];
+const SOURCES = ["src/content.ts", "src/App.tsx", "index.html", "ja/index.html", "scripts/og-image.mjs"];
 // Printable ASCII is always kept, so that code samples and numbers are covered.
 const ASCII = Array.from({ length: 95 }, (_, i) => String.fromCharCode(32 + i)).join("");
 const characters = [...new Set([...ASCII, ...SOURCES.map(read).join("")])].filter((c) => c >= " ").sort().join("");

@@ -332,10 +332,17 @@ code {
   border: 2px solid var(--stump-bark);
 }
 
-/* The command wraps on a narrow screen, so that it never has to be scrolled sideways. */
+/*
+ * On a narrow screen the command wraps between its words and nowhere else, so that it can be
+ * read before it is copied and never has to be scrolled sideways.
+ */
 .install__code {
-  overflow-wrap: anywhere;
+  min-width: 0;
   font-size: 0.95rem;
+}
+
+.install__code span {
+  white-space: nowrap;
 }
 
 .install__copy {
@@ -382,8 +389,9 @@ code {
   fill: none;
   stroke-width: 26;
   stroke-linecap: round;
-  animation: grow 1100ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
-  animation-delay: calc(var(--order) * 260ms + 250ms);
+  /* Short, and nearly together: a screenshot taken a second after load must show all three. */
+  animation: grow 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: calc(var(--order) * 90ms + 100ms);
 }
 
 .rings__arc--axe {
@@ -405,7 +413,7 @@ code {
 .rings__cut {
   fill: var(--stump-bark);
   transform-box: view-box;
-  animation: strike 240ms cubic-bezier(0.3, 1.5, 0.5, 1) 1750ms both;
+  animation: strike 220ms cubic-bezier(0.3, 1.5, 0.5, 1) 900ms both;
 }
 
 @keyframes grow {
@@ -609,6 +617,46 @@ code {
   font-weight: 700;
 }
 
+/* On a narrow screen each tool becomes a block: its name, its criteria, then what it does. */
+@media (max-width: 44rem) {
+  .tools,
+  .tools tbody,
+  .tools tr,
+  .tools th,
+  .tools td {
+    display: block;
+  }
+
+  .tools thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .tools tr {
+    padding-block: 1rem;
+    border-bottom: 1px solid var(--lily-color-border-default);
+  }
+
+  .tools tbody th,
+  .tools tbody td {
+    padding: 0;
+    border: 0;
+  }
+
+  .tools tbody td:first-of-type {
+    margin-top: 0.15rem;
+    font-size: 0.9375rem;
+    color: var(--lily-color-fg-muted);
+  }
+
+  .tools tbody td:last-of-type {
+    margin-top: 0.4rem;
+  }
+}
+
 .start {
   display: grid;
   gap: clamp(2rem, 5vw, 4rem);
@@ -680,6 +728,16 @@ code {
 @media (min-width: 40rem) and (max-width: 62rem) {
   .grain {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/*
+ * lily-ui breaks Japanese body text between phrases. On a phone the lines are too short for that:
+ * a long phrase pushes the one before it onto a line of its own. There, break anywhere.
+ */
+@media (max-width: 40rem) {
+  html:lang(ja) :is(p, li, dd) {
+    word-break: normal;
   }
 }
 

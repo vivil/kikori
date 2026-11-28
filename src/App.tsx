@@ -1,4 +1,5 @@
 import { Button, CodeBlock, Container, CopyButton, Footer, Link, MotionProvider, Navbar, Table, Tabs, ThemeProvider, animationClass, cx, effectClass, useTheme } from "@lily-ui/react";
+import { Fragment } from "react";
 import { CONTENT, LINKS, type Content, type Locale } from "./content";
 import { Rings } from "./Rings";
 
@@ -70,7 +71,14 @@ function Page({ t }: { t: Content }) {
               <h1 id="hero-title">{keepTogether(t.hero.title, "axe-core")}</h1>
               <p className="hero__lead">{t.hero.lead}</p>
               <div className="install">
-                <code className="install__code">{t.hero.install}</code>
+                <code className="install__code">
+                  {t.hero.install.split(" ").map((word, index) => (
+                    <Fragment key={index}>
+                      {index > 0 ? " " : null}
+                      <span>{word}</span>
+                    </Fragment>
+                  ))}
+                </code>
                 <CopyButton value={t.hero.install} copyLabel={t.hero.copy} copiedLabel={t.hero.copied} size="sm" className="install__copy" />
               </div>
               <p className="hero__more">
@@ -138,24 +146,24 @@ function Page({ t }: { t: Content }) {
           <Container width="xl">
             <h2 id="checks-title">{t.checks.heading}</h2>
             <p className="lead">{t.checks.lead}</p>
-            <Table responsive caption={<span className="visually-hidden">{t.checks.caption}</span>} className="tools">
-              <thead>
-                <tr>
+            <Table role="table" caption={<span className="visually-hidden">{t.checks.caption}</span>} className="tools">
+              <thead role="rowgroup">
+                <tr role="row">
                   {t.checks.columns.map((column) => (
-                    <th key={column} scope="col">
+                    <th key={column} scope="col" role="columnheader">
                       {column}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody>
+              <tbody role="rowgroup">
                 {t.checks.rows.map(([tool, criteria, what]) => (
-                  <tr key={tool}>
-                    <th scope="row">
+                  <tr key={tool} role="row">
+                    <th scope="row" role="rowheader">
                       <code>{tool}</code>
                     </th>
-                    <td>{criteria}</td>
-                    <td>{what}</td>
+                    <td role="cell">{criteria}</td>
+                    <td role="cell">{what}</td>
                   </tr>
                 ))}
               </tbody>

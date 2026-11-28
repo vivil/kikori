@@ -20,6 +20,8 @@ npm run build     # fonts, type check, bundle and prerender into dist/
 npm run preview   # serve dist/ at http://localhost:4173/kikori/
 ```
 
+The images shown when a link to the site is shared (`public/og-en.png`, `public/og-ja.png`) are drawn by `scripts/og-image.mjs`. It needs Playwright, which is not a dependency of the site. Run it again when the headline, the logo or the benchmark numbers change.
+
 After changing any text, run `npm run build` (or `npm run fonts`) so that the font subsets include the new characters, and commit the files in `src/fonts/`.
 
 ## Publish
